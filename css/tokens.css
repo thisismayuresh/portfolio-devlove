@@ -1,0 +1,79 @@
+/* ---------------------------------------------------------------------------
+ * Design tokens.
+ *
+ * Custom properties pierce shadow boundaries, so every Web Component in the
+ * app styles itself purely from these variables. Retheming the whole editor
+ * means editing this file and nothing else.
+ * ------------------------------------------------------------------------- */
+
+:root {
+  /* Surfaces — layered darkest-to-lightest, VS Code style. */
+  --surface-void: #101114;
+  --surface-app: #17181c;
+  --surface-panel: #1b1d22;
+  --surface-raised: #212429;
+  --surface-sunken: #141519;
+  --surface-input: #16171b;
+  --surface-hover: rgba(255, 255, 255, 0.045);
+  --surface-active: rgba(255, 255, 255, 0.08);
+
+  /* Lines */
+  --line-soft: #24262c;
+  --line: #2b2e36;
+  --line-strong: #383c46;
+
+  /* Ink */
+  --ink: #d9dce3;
+  --ink-strong: #f2f4f8;
+  --ink-dim: #8b909c;
+  --ink-faint: #61656f;
+
+  /* Accents */
+  --accent: #4a8cff;
+  --accent-hover: #5f9bff;
+  --accent-press: #3b7aeb;
+  --accent-ink: #ffffff;
+  --accent-wash: rgba(74, 140, 255, 0.14);
+  --accent-line: rgba(74, 140, 255, 0.45);
+
+  --positive: #3fb950;
+  --warn: #d9a441;
+  --danger: #f26d63;
+  --danger-wash: rgba(242, 109, 99, 0.14);
+
+  /* Canvas chrome */
+  --canvas-backdrop: #0d0e11;
+  --canvas-grid: rgba(255, 255, 255, 0.035);
+  --canvas-page-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  --marker-select: #4a8cff;
+  --marker-hover: rgba(74, 140, 255, 0.55);
+  --marker-drop: #3fb950;
+  --marker-guide: #ff4d8d;
+
+  /* Type */
+  --font-ui: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Mono", "JetBrains Mono", Consolas, "SF Mono", ui-monospace, monospace;
+  --text-xs: 10.5px;
+  --text-sm: 11.5px;
+  --text-md: 12.5px;
+  --text-lg: 13.5px;
+
+  /* Metrics */
+  --rail-left: 244px;
+  --rail-right: 272px;
+  --bar-top: 42px;
+  --bar-bottom: 24px;
+  --row-h: 26px;
+  --control-h: 26px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --gap-1: 4px;
+  --gap-2: 8px;
+  --gap-3: 12px;
+  --gap-4: 16px;
+
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--line);
+  --focus-ring: 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-wash);
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+}

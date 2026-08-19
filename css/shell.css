@@ -1,0 +1,237 @@
+/* ---------------------------------------------------------------------------
+ * Application shell.
+ *
+ * Only the outer frame lives here. Every panel is a Web Component that carries
+ * its own Shadow DOM styles, so this file stays intentionally short.
+ * ------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--surface-app);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--text-md);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent-wash);
+  color: var(--ink-strong);
+}
+
+/* Thin, unobtrusive scrollbars everywhere in the editor chrome. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #4a4f5c;
+  background-clip: content-box;
+}
+
+/* --------------------------------------------------------------- shell grid */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail-left) minmax(0, 1fr) var(--rail-right);
+  grid-template-rows: var(--bar-top) minmax(0, 1fr) var(--bar-bottom);
+  grid-template-areas:
+    "topbar topbar topbar"
+    "left   stage  right"
+    "status status status";
+  height: 100vh;
+  width: 100vw;
+}
+
+/* `display: grid` above outranks the UA rule for [hidden], so restate it. */
+.shell[hidden] {
+  display: none;
+}
+
+.shell[data-mode="preview"] {
+  grid-template-columns: 0 minmax(0, 1fr) 0;
+}
+
+.shell[data-mode="preview"] .shell__left,
+.shell[data-mode="preview"] .shell__right {
+  display: none;
+}
+
+.shell__topbar {
+  grid-area: topbar;
+  min-width: 0;
+}
+
+.shell__left {
+  grid-area: left;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: minmax(140px, auto) minmax(0, 1fr);
+  border-right: 1px solid var(--line);
+  background: var(--surface-panel);
+}
+
+.shell__stage {
+  grid-area: stage;
+  min-width: 0;
+  position: relative;
+  background: var(--canvas-backdrop);
+}
+
+.shell__right {
+  grid-area: right;
+  min-width: 0;
+  border-left: 1px solid var(--line);
+  background: var(--surface-panel);
+  overflow: hidden;
+}
+
+.shell__status {
+  grid-area: status;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------- boot screen */
+
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  gap: var(--gap-3);
+  background: var(--surface-app);
+  transition: opacity 220ms var(--ease);
+}
+
+.boot[hidden] {
+  display: none;
+}
+
+.boot--fading {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.boot__inner {
+  display: grid;
+  justify-items: center;
+  gap: var(--gap-3);
+  max-width: 460px;
+  padding: 0 var(--gap-4);
+  text-align: center;
+}
+
+.boot__mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: linear-gradient(150deg, var(--accent), #8a5cff);
+  box-shadow: 0 8px 24px rgba(74, 140, 255, 0.28);
+}
+
+.boot__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--ink-strong);
+}
+
+.boot__note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+}
+
+.boot__error {
+  display: none;
+  width: 100%;
+  padding: var(--gap-3);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-md);
+  background: var(--danger-wash);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.boot--failed .boot__error {
+  display: block;
+}
+
+.boot--failed .boot__mark {
+  background: linear-gradient(150deg, var(--danger), #b3453d);
+  box-shadow: none;
+}
+
+.boot__bar {
+  width: 168px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.boot--failed .boot__bar {
+  display: none;
+}
+
+.boot__bar::after {
+  content: "";
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: boot-slide 1.1s var(--ease) infinite;
+}
+
+@keyframes boot-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boot__bar::after {
+    animation: none;
+    width: 100%;
+  }
+}

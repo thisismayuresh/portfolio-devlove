@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>Forge — visual web builder</title>
+    <link rel="stylesheet" href="./css/tokens.css" />
+    <link rel="stylesheet" href="./css/shell.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234a8cff'/%3E%3Cpath d='M10 22V10h9M10 16h7' stroke='%23fff' stroke-width='2.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <!-- Shell frame. Panels are custom elements; each owns its Shadow DOM. -->
+    <div class="shell" id="shell" data-mode="design" hidden>
+      <forge-toolbar class="shell__topbar"></forge-toolbar>
+
+      <div class="shell__left">
+        <forge-palette></forge-palette>
+        <forge-layers></forge-layers>
+      </div>
+
+      <div class="shell__stage">
+        <forge-canvas></forge-canvas>
+      </div>
+
+      <div class="shell__right">
+        <forge-inspector></forge-inspector>
+      </div>
+
+      <forge-status class="shell__status"></forge-status>
+    </div>
+
+    <!-- Boot gate: shown until the WASM core reports ready, or the failure. -->
+    <div class="boot" id="boot">
+      <div class="boot__inner">
+        <div class="boot__mark"></div>
+        <h1 class="boot__title">Starting the Rust engine</h1>
+        <p class="boot__note" id="boot-note">Compiling WebAssembly module…</p>
+        <div class="boot__bar"></div>
+        <pre class="boot__error" id="boot-error"></pre>
+      </div>
+    </div>
+
+    <script type="module" src="./js/main.js"></script>
+    <noscript>
+      <p style="padding: 24px; color: #d9dce3">
+        This editor needs JavaScript and WebAssembly enabled.
+      </p>
+    </noscript>
+  </body>
+</html>

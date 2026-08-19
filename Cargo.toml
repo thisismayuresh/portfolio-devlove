@@ -1,0 +1,23 @@
+[package]
+name = "designer_engine"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance WASM core for a zero-dependency drag-and-drop website builder"
+license = "MIT"
+repository = ""
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Release profile tuned for a small, fast .wasm payload.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
