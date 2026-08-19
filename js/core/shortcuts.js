@@ -8,6 +8,7 @@
  */
 
 import { app } from './app.js';
+import { SHORTCUT_TO_KIND } from '../registry/elements.js';
 
 /**
  * @typedef {object} Binding
@@ -128,6 +129,17 @@ function isTypingContext() {
 }
 
 /**
+ * Drops a new element near the top of the page, the same place the palette's
+ * double-click path uses.
+ *
+ * @param {string} kind
+ */
+function dropElement(kind) {
+  const width = Number(app.getPage().width) || 1280;
+  app.addElement(kind, 'root', Math.round(width / 2 - 160), 64);
+}
+
+/**
  * Installs the global key handler.
  *
  * @returns {() => void} uninstall function
@@ -137,6 +149,20 @@ export function installShortcuts() {
   const table = new Map();
   for (const binding of BINDINGS) {
     table.set(binding.keys, binding);
+  }
+
+  // Unmodified letters drop a palette element. Generated from the registry so
+  // the tile hints and the keyboard can never disagree.
+  for (const [letter, kind] of Object.entries(SHORTCUT_TO_KIND)) {
+    if (table.has(letter)) {
+      console.error(`[shortcuts] "${letter}" is already bound; ${kind} will not get it`);
+      continue;
+    }
+    table.set(letter, {
+      keys: letter,
+      description: `Add ${kind}`,
+      run: () => dropElement(kind),
+    });
   }
 
   /** @param {KeyboardEvent} event */

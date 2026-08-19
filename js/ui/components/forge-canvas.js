@@ -1,5 +1,6 @@
 /**
- * The stage: sandboxed preview frame plus the interaction overlay.
+ * The stage: canvas toolbar, sandboxed preview frame, and the interaction
+ * overlay.
  *
  * Nothing here knows what an element *is*. The overlay converts pointer
  * positions into page coordinates, asks the Rust engine what lives there, and
@@ -13,7 +14,6 @@
 import { PanelElement } from '../panel-element.js';
 import { icon } from '../icons.js';
 import { app } from '../../core/app.js';
-import { DRAG_MIME } from '../../registry/elements.js';
 
 /** Pointer travel, in page pixels, before a press becomes a drag. */
 const DRAG_THRESHOLD = 3;
@@ -27,17 +27,133 @@ const EDITABLE_KINDS = new Set(['heading', 'text', 'button', 'link']);
 /** Handle directions, in render order. */
 const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
+/** The non-breaking space contenteditable inserts for runs of spaces. */
+const NBSP = '\u00A0';
+
+/**
+ * Canvas width presets. Adding a breakpoint is one entry here.
+ * @type {ReadonlyArray<{id: string, icon: string, label: string, width: number}>}
+ */
+export const DEVICES = Object.freeze([
+  { id: 'phone', icon: 'phone', label: 'Phone', width: 390 },
+  { id: 'tablet', icon: 'tablet', label: 'Tablet', width: 768 },
+  { id: 'laptop', icon: 'laptop', label: 'Laptop', width: 1280 },
+  { id: 'desktop', icon: 'desktop', label: 'Desktop', width: 1512 },
+]);
+
 export class ForgeCanvas extends PanelElement {
   static styles = `
-    .root { position: relative; height: 100%; min-height: 0; }
+    .root {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+    }
 
+    /* ------------------------------------------------------- canvas toolbar */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: var(--bar-canvas-h);
+      flex: 0 0 auto;
+      padding: 0 10px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-chrome);
+    }
+    :host([data-mode="preview"]) .toolbar { display: none; }
+
+    .page-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 24px;
+      padding: 0 9px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface-raised);
+      color: var(--ink);
+      font-size: var(--text-sm);
+      max-width: 190px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .toolbar__group { display: flex; align-items: center; gap: 1px; }
+    .toolbar__spacer { flex: 1 1 auto; }
+    .toolbar__sep { width: 1px; height: 16px; background: var(--line); }
+
+    .devices {
+      display: flex;
+      gap: 1px;
+      padding: 2px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      background: var(--surface-input);
+    }
+    .devices button {
+      display: grid;
+      place-items: center;
+      width: 25px;
+      height: 20px;
+      border-radius: 3px;
+      color: var(--ink-faint);
+      transition: color 90ms var(--ease), background 90ms var(--ease);
+    }
+    .devices button:hover { color: var(--ink); background: var(--surface-hover); }
+    .devices button[aria-pressed="true"] { color: var(--accent-ink); background: var(--accent); }
+
+    .width-readout {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--ink-dim);
+      font-size: var(--text-sm);
+    }
+    .width-readout input {
+      width: 50px;
+      height: 22px;
+      padding: 0 5px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      -moz-appearance: textfield;
+    }
+    .width-readout input::-webkit-outer-spin-button,
+    .width-readout input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .width-readout input:hover { border-color: var(--line); background: var(--surface-input); }
+    .width-readout input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: var(--surface-input);
+    }
+
+    .zoom { display: flex; align-items: center; gap: 1px; }
+    .zoom__value {
+      min-width: 46px;
+      height: 22px;
+      border-radius: 3px;
+      color: var(--ink);
+      font-size: var(--text-sm);
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+    }
+    .zoom__value:hover { background: var(--surface-hover); }
+    .zoom .icon-btn { width: 22px; height: 22px; }
+
+    /* -------------------------------------------------------------- stage */
     .viewport {
-      position: absolute;
-      inset: 0;
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
       overflow: auto;
       background-color: var(--canvas-backdrop);
-      background-image:
-        radial-gradient(var(--canvas-grid) 1px, transparent 1px);
+      background-image: radial-gradient(var(--canvas-grid) 1px, transparent 1px);
       background-size: 16px 16px;
       background-position: -1px -1px;
     }
@@ -48,7 +164,7 @@ export class ForgeCanvas extends PanelElement {
       justify-content: center;
       min-width: min-content;
       min-height: 100%;
-      padding: 40px 48px 96px;
+      padding: 32px 40px 120px;
     }
 
     .page-box { position: relative; flex: 0 0 auto; }
@@ -86,30 +202,48 @@ export class ForgeCanvas extends PanelElement {
     }
     .marker[data-on="true"] { display: block; }
 
-    .marker--hover { outline: 1px solid var(--marker-hover); outline-offset: 0; }
+    .marker--hover { outline: 1px solid var(--marker-hover); }
     .marker--drop {
-      outline: 1px dashed var(--marker-drop);
-      background: rgba(63, 185, 80, 0.07);
+      outline: 2px solid var(--marker-drop);
+      background: rgba(70, 185, 90, 0.08);
+      border-radius: 2px;
     }
-    .marker--select { outline: 1px solid var(--marker-select); }
+    .marker--select { outline: 1.5px solid var(--marker-select); }
 
     .handle {
       position: absolute;
-      width: 7px;
-      height: 7px;
+      width: 8px;
+      height: 8px;
       background: #fff;
-      border: 1px solid var(--marker-select);
-      border-radius: 1px;
+      border: 1.5px solid var(--marker-select);
+      border-radius: 2px;
       pointer-events: auto;
     }
-    .handle[data-h="nw"] { top: -4px; left: -4px; cursor: nwse-resize; }
-    .handle[data-h="n"]  { top: -4px; left: 50%; margin-left: -3.5px; cursor: ns-resize; }
-    .handle[data-h="ne"] { top: -4px; right: -4px; cursor: nesw-resize; }
-    .handle[data-h="e"]  { top: 50%; right: -4px; margin-top: -3.5px; cursor: ew-resize; }
-    .handle[data-h="se"] { bottom: -4px; right: -4px; cursor: nwse-resize; }
-    .handle[data-h="s"]  { bottom: -4px; left: 50%; margin-left: -3.5px; cursor: ns-resize; }
-    .handle[data-h="sw"] { bottom: -4px; left: -4px; cursor: nesw-resize; }
-    .handle[data-h="w"]  { top: 50%; left: -4px; margin-top: -3.5px; cursor: ew-resize; }
+    .handle[data-h="nw"] { top: -4.5px; left: -4.5px; cursor: nwse-resize; }
+    .handle[data-h="n"]  { top: -4.5px; left: 50%; margin-left: -4px; cursor: ns-resize; }
+    .handle[data-h="ne"] { top: -4.5px; right: -4.5px; cursor: nesw-resize; }
+    .handle[data-h="e"]  { top: 50%; right: -4.5px; margin-top: -4px; cursor: ew-resize; }
+    .handle[data-h="se"] { bottom: -4.5px; right: -4.5px; cursor: nwse-resize; }
+    .handle[data-h="s"]  { bottom: -4.5px; left: 50%; margin-left: -4px; cursor: ns-resize; }
+    .handle[data-h="sw"] { bottom: -4.5px; left: -4.5px; cursor: nesw-resize; }
+    .handle[data-h="w"]  { top: 50%; left: -4.5px; margin-top: -4px; cursor: ew-resize; }
+
+    .tag {
+      position: absolute;
+      display: none;
+      align-items: center;
+      height: 17px;
+      padding: 0 6px;
+      border-radius: 3px 3px 0 0;
+      background: var(--marker-select);
+      color: #fff;
+      font-size: 10px;
+      line-height: 17px;
+      white-space: nowrap;
+      pointer-events: none;
+      transform: translate(0, -100%);
+    }
+    .tag[data-on="true"] { display: flex; }
 
     .badge {
       position: absolute;
@@ -126,21 +260,6 @@ export class ForgeCanvas extends PanelElement {
       transform: translate(0, 6px);
     }
     .badge[data-on="true"] { display: block; }
-
-    .tag {
-      position: absolute;
-      display: none;
-      padding: 1px 5px;
-      border-radius: 3px 3px 0 0;
-      background: var(--marker-select);
-      color: #fff;
-      font-size: 10px;
-      line-height: 14px;
-      white-space: nowrap;
-      pointer-events: none;
-      transform: translate(0, -100%);
-    }
-    .tag[data-on="true"] { display: block; }
 
     .guide {
       position: absolute;
@@ -168,50 +287,57 @@ export class ForgeCanvas extends PanelElement {
     }
     .text-editor[data-on="true"] { display: block; }
 
-    /* ------------------------------------------------------------ zoom bar */
-    .zoombar {
-      position: absolute;
-      right: 14px;
-      bottom: 14px;
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      padding: 3px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-md);
-      background: rgba(27, 29, 34, 0.92);
-      backdrop-filter: blur(8px);
-      box-shadow: var(--shadow-pop);
-    }
-    :host([data-mode="preview"]) .zoombar { display: none; }
-
-    .zoombar__value {
-      min-width: 46px;
-      height: 22px;
-      padding: 0 4px;
-      border-radius: 3px;
-      color: var(--ink);
-      font-size: var(--text-sm);
-      font-variant-numeric: tabular-nums;
-      text-align: center;
-      line-height: 22px;
-    }
-    .zoombar__value:hover { background: var(--surface-hover); }
-
-    .zoombar .icon-btn { width: 22px; height: 22px; }
-
     .exit-preview {
       position: absolute;
-      right: 14px;
-      bottom: 14px;
+      right: 16px;
+      bottom: 16px;
       display: none;
       gap: 6px;
+      z-index: 3;
     }
     :host([data-mode="preview"]) .exit-preview { display: inline-flex; }
   `;
 
   template() {
     return `
+      <div class="toolbar">
+        <span class="page-chip">${icon('frame', 12)}<span id="pageName">Page</span></span>
+
+        <span class="toolbar__sep"></span>
+
+        <span class="toolbar__group">
+          <button class="icon-btn" data-action="undo" title="Undo (Ctrl+Z)" aria-label="Undo">${icon('undo', 15)}</button>
+          <button class="icon-btn" data-action="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">${icon('redo', 15)}</button>
+        </span>
+
+        <span class="toolbar__spacer"></span>
+
+        <span class="devices" role="group" aria-label="Canvas width">
+          ${DEVICES.map(
+            (device) => `
+              <button data-device="${device.id}" aria-pressed="false"
+                      title="${device.label} — ${device.width}px" aria-label="${device.label}">
+                ${icon(device.icon, 14)}
+              </button>`
+          ).join('')}
+        </span>
+
+        <span class="width-readout">
+          <input id="widthInput" type="number" min="240" max="6000" step="1"
+                 aria-label="Canvas width in pixels" />
+          <span>px</span>
+        </span>
+
+        <span class="toolbar__spacer"></span>
+
+        <span class="zoom">
+          <button class="icon-btn" data-zoom="out" title="Zoom out (Ctrl+-)" aria-label="Zoom out">${icon('minus', 14)}</button>
+          <button class="zoom__value" id="zoomValue" title="Reset to 100%">100%</button>
+          <button class="icon-btn" data-zoom="in" title="Zoom in (Ctrl++)" aria-label="Zoom in">${icon('plus', 14)}</button>
+          <button class="icon-btn" data-zoom="fit" title="Fit page in view" aria-label="Fit page">${icon('frame', 14)}</button>
+        </span>
+      </div>
+
       <div class="viewport scroll" id="viewport">
         <div class="pad">
           <div class="page-box" id="pageBox">
@@ -233,18 +359,11 @@ export class ForgeCanvas extends PanelElement {
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="zoombar">
-        <button class="icon-btn" data-zoom="out" title="Zoom out (Ctrl+-)">${icon('minus', 13)}</button>
-        <button class="zoombar__value" id="zoomValue" title="Reset to 100%">100%</button>
-        <button class="icon-btn" data-zoom="in" title="Zoom in (Ctrl++)">${icon('plus', 13)}</button>
-        <button class="icon-btn" data-zoom="fit" title="Fit page in view">${icon('frame', 13)}</button>
+        <button class="btn btn--primary exit-preview" data-action="exit-preview">
+          ${icon('cursor', 14)}<span>Back to design</span>
+        </button>
       </div>
-
-      <button class="btn btn--primary exit-preview" data-action="exit-preview">
-        ${icon('cursor', 14)}<span>Back to design</span>
-      </button>
     `;
   }
 
@@ -256,28 +375,33 @@ export class ForgeCanvas extends PanelElement {
     this.viewport = /** @type {HTMLElement} */ (this.$('#viewport'));
     this.textEditor = /** @type {HTMLElement} */ (this.$('#textEditor'));
 
-    /** @type {null | {kind: string, id: string, [key: string]: any}} */
+    /** @type {null | Record<string, any>} */
     this._gesture = null;
     /** id currently open in the inline text editor @type {string | null} */
     this._editing = null;
     this._pageWidth = 1280;
-    this._pageHeight = 860;
+    this._pageMinHeight = 860;
+    this._pageTitle = 'Page';
+    /** guards the one-shot zoom-to-fit on first paint @type {boolean} */
+    this._fitted = false;
 
     this.setAttribute('data-mode', app.state.mode);
     app.registerPreviewFrame(this.frame);
 
+    this._wireToolbar();
     this._wirePointer();
-    this._wireDropTarget();
-    this._wireZoom();
+    this._wireExternalDrag();
     this._wireTextEditor();
 
     this.listen(['ready', 'document', 'page'], () => {
       this._readPage();
       this._layout();
+      this._syncToolbar();
       this._drawMarkers();
     });
     this.listen('geometry', () => {
       this._layout();
+      this._fitOnFirstPaint();
       this._drawMarkers();
     });
     this.listen(['selection', 'hover', 'node'], () => this._drawMarkers());
@@ -292,6 +416,7 @@ export class ForgeCanvas extends PanelElement {
 
     this._readPage();
     this._layout();
+    this._syncToolbar();
   }
 
   // ============================================================== layout ===
@@ -303,6 +428,7 @@ export class ForgeCanvas extends PanelElement {
     const page = app.getPage();
     this._pageWidth = Number(page.width) || 1280;
     this._pageMinHeight = Number(page.min_height) || 860;
+    this._pageTitle = page.title || 'Page';
   }
 
   /** Sizes the frame to the content and applies the zoom transform. */
@@ -310,7 +436,6 @@ export class ForgeCanvas extends PanelElement {
     const zoom = app.state.zoom;
     const height = Math.max(this._pageMinHeight || 860, this._measuredHeight());
 
-    this._pageHeight = height;
     this.scaler.style.width = `${this._pageWidth}px`;
     this.scaler.style.height = `${height}px`;
     this.scaler.style.transform = `scale(${zoom})`;
@@ -334,6 +459,140 @@ export class ForgeCanvas extends PanelElement {
     return Math.ceil(bottom);
   }
 
+  // ============================================================= toolbar ===
+
+  _wireToolbar() {
+    this.bind(this.root, 'click', (event) => {
+      const target = /** @type {HTMLElement} */ (event.target);
+
+      const device = target.closest('[data-device]');
+      if (device) {
+        const preset = DEVICES.find((entry) => entry.id === device.getAttribute('data-device'));
+        if (preset) {
+          app.setPageProperty('width', String(preset.width));
+        }
+        return;
+      }
+
+      const zoom = target.closest('[data-zoom]');
+      if (zoom) {
+        const action = zoom.getAttribute('data-zoom');
+        if (action === 'in') {
+          app.zoomBy(1.2);
+        } else if (action === 'out') {
+          app.zoomBy(1 / 1.2);
+        } else {
+          this.zoomToFit();
+        }
+        return;
+      }
+
+      if (target.closest('#zoomValue')) {
+        app.setZoom(1);
+        return;
+      }
+
+      const action = target.closest('[data-action]');
+      if (!action) {
+        return;
+      }
+      switch (action.getAttribute('data-action')) {
+        case 'undo':
+          app.undo();
+          break;
+        case 'redo':
+          app.redo();
+          break;
+        case 'exit-preview':
+          app.setMode('design');
+          break;
+        default:
+          break;
+      }
+    });
+
+    const widthInput = /** @type {HTMLInputElement} */ (this.$('#widthInput'));
+    this.bind(widthInput, 'change', () => app.setPageProperty('width', widthInput.value));
+
+    // Ctrl/⌘ + wheel zooms; plain wheel keeps the native scroll behaviour.
+    this.bind(
+      this.viewport,
+      'wheel',
+      (event) => {
+        const wheelEvent = /** @type {WheelEvent} */ (event);
+        if (!wheelEvent.ctrlKey && !wheelEvent.metaKey) {
+          return;
+        }
+        wheelEvent.preventDefault();
+        app.zoomBy(wheelEvent.deltaY < 0 ? 1.1 : 1 / 1.1);
+      },
+      { passive: false }
+    );
+
+    this._syncZoomLabel();
+  }
+
+  _syncToolbar() {
+    const name = this.$('#pageName');
+    if (name) {
+      name.textContent = this._pageTitle;
+    }
+
+    const widthInput = /** @type {HTMLInputElement} */ (this.$('#widthInput'));
+    if (widthInput && this.shadowRoot.activeElement !== widthInput) {
+      widthInput.value = String(Math.round(this._pageWidth));
+    }
+
+    for (const button of this.$$('[data-device]')) {
+      const preset = DEVICES.find((entry) => entry.id === button.getAttribute('data-device'));
+      button.setAttribute(
+        'aria-pressed',
+        String(Boolean(preset) && preset.width === this._pageWidth)
+      );
+    }
+
+    if (app.engine) {
+      const undo = /** @type {HTMLButtonElement | null} */ (this.$('[data-action="undo"]'));
+      const redo = /** @type {HTMLButtonElement | null} */ (this.$('[data-action="redo"]'));
+      if (undo) {
+        undo.disabled = !app.engine.canUndo();
+      }
+      if (redo) {
+        redo.disabled = !app.engine.canRedo();
+      }
+    }
+  }
+
+  /**
+   * Zooms out once, on the first real measurement, if the page is wider than
+   * the stage. Opening to a page that runs off the edge reads as broken.
+   */
+  _fitOnFirstPaint() {
+    if (this._fitted || this.viewport.clientWidth === 0) {
+      return;
+    }
+    this._fitted = true;
+    if (this._pageWidth * app.state.zoom > this.viewport.clientWidth - 80) {
+      this.zoomToFit();
+    }
+  }
+
+  /** Scales the page so it fits the visible viewport. */
+  zoomToFit() {
+    const available = this.viewport.clientWidth - 96;
+    if (available <= 0 || !this._pageWidth) {
+      return;
+    }
+    app.setZoom(Math.min(1, available / this._pageWidth));
+  }
+
+  _syncZoomLabel() {
+    const label = this.$('#zoomValue');
+    if (label) {
+      label.textContent = `${Math.round(app.state.zoom * 100)}%`;
+    }
+  }
+
   // ============================================================= pointer ===
 
   _wirePointer() {
@@ -351,18 +610,28 @@ export class ForgeCanvas extends PanelElement {
   }
 
   /**
-   * Converts a pointer event into page coordinates.
+   * Converts client coordinates into page coordinates.
    *
-   * @param {{clientX: number, clientY: number}} event
+   * @param {{clientX: number, clientY: number}} point
    * @returns {{x: number, y: number}}
    */
-  _toPagePoint(event) {
+  _toPagePoint(point) {
     const box = this.scaler.getBoundingClientRect();
     const zoom = app.state.zoom || 1;
     return {
-      x: (event.clientX - box.left) / zoom,
-      y: (event.clientY - box.top) / zoom,
+      x: (point.clientX - box.left) / zoom,
+      y: (point.clientY - box.top) / zoom,
     };
+  }
+
+  /**
+   * @param {number} clientX
+   * @param {number} clientY
+   * @returns {boolean} whether the point is over the scrollable canvas area
+   */
+  _isOverViewport(clientX, clientY) {
+    const box = this.viewport.getBoundingClientRect();
+    return clientX >= box.left && clientX <= box.right && clientY >= box.top && clientY <= box.bottom;
   }
 
   /** @param {PointerEvent} event */
@@ -399,7 +668,7 @@ export class ForgeCanvas extends PanelElement {
       return;
     }
 
-    this.overlay.setPointerCapture(event.pointerId);
+    this._capture(event.pointerId);
     this._gesture = {
       kind: 'press',
       id: hit,
@@ -415,6 +684,21 @@ export class ForgeCanvas extends PanelElement {
     };
   }
 
+  /**
+   * Pointer capture keeps a gesture alive when the cursor leaves the overlay.
+   * Synthetic events (tests, assistive tech) have no active pointer, so a
+   * failure here must not abort the gesture.
+   *
+   * @param {number} pointerId
+   */
+  _capture(pointerId) {
+    try {
+      this.overlay.setPointerCapture(pointerId);
+    } catch (error) {
+      // No active pointer with that id — the gesture still works via bubbling.
+    }
+  }
+
   /** @param {PointerEvent} event */
   _onPointerMove(event) {
     if (app.state.mode !== 'design' || !app.engine) {
@@ -423,8 +707,7 @@ export class ForgeCanvas extends PanelElement {
     const point = this._toPagePoint(event);
 
     if (!this._gesture) {
-      const hit = app.engine.hitTest(point.x, point.y);
-      app.setHover(hit);
+      app.setHover(app.engine.hitTest(point.x, point.y));
       return;
     }
 
@@ -449,9 +732,7 @@ export class ForgeCanvas extends PanelElement {
     if (!this._gesture) {
       return;
     }
-    const gesture = this._gesture;
-
-    if (gesture.kind === 'move') {
+    if (this._gesture.kind === 'move') {
       this._commitMove(this._toPagePoint(event));
     }
     this._endGesture();
@@ -462,11 +743,12 @@ export class ForgeCanvas extends PanelElement {
       try {
         this.overlay.releasePointerCapture(this._gesture.pointerId);
       } catch (error) {
-        // The capture may already be gone (pointercancel); nothing to release.
+        // Capture may already be gone (pointercancel); nothing to release.
       }
     }
     this._gesture = null;
     this.overlay.removeAttribute('data-gesture');
+    this._setMarker('#dropMarker', null);
     this._hideGuides();
     this._drawMarkers();
   }
@@ -515,19 +797,18 @@ export class ForgeCanvas extends PanelElement {
       }
     }
 
-    const snapped = event.ctrlKey || event.metaKey
-      ? { x: nextX, y: nextY, guideX: null, guideY: null }
-      : this._applySnapping(nextX, nextY, gesture);
+    const snapped =
+      event.ctrlKey || event.metaKey
+        ? { x: nextX, y: nextY, guideX: null, guideY: null }
+        : this._applySnapping(nextX, nextY, gesture);
 
     app.moveElement(gesture.id, Math.round(snapped.x), Math.round(snapped.y));
     this._paintGuides(gesture.parentId, snapped.guideX, snapped.guideY);
-    this._previewDropTarget(point, gesture.id);
+    this._previewDropTarget(point, gesture.id, gesture.parentId);
     this._drawMarkers(this._predictRect(gesture, snapped.x, snapped.y));
   }
 
-  /**
-   * @param {{x: number, y: number}} point
-   */
+  /** @param {{x: number, y: number}} point */
   _commitMove(point) {
     const gesture = this._gesture;
     const targetParent = app.engine.dropTarget(point.x, point.y, gesture.id);
@@ -539,10 +820,6 @@ export class ForgeCanvas extends PanelElement {
 
     // Keep the element visually where the pointer released it by converting
     // the page point into the new parent's coordinate space.
-    const node = app.getNode(gesture.id);
-    if (!node) {
-      return;
-    }
     const grabX = point.x - gesture.origin.x + gesture.startX;
     const grabY = point.y - gesture.origin.y + gesture.startY;
     const parentRect = app.rectOf(gesture.parentId);
@@ -552,9 +829,24 @@ export class ForgeCanvas extends PanelElement {
     if (!app.reparent(gesture.id, targetParent, -1)) {
       return;
     }
-    const local = JSON.parse(app.engine.toLocalPoint(targetParent, pageX, pageY));
+    const local = this._localPoint(targetParent, pageX, pageY);
     app.moveElement(gesture.id, Math.round(local[0]), Math.round(local[1]));
-    app.setStatus(`Moved into ${targetParent === 'root' ? 'the page' : targetParent}`);
+    app.setStatus(targetParent === 'root' ? 'Moved to the page' : 'Nested inside a container');
+  }
+
+  /**
+   * @param {string} parentId
+   * @param {number} pageX
+   * @param {number} pageY
+   * @returns {number[]} `[x, y]` local to the parent
+   */
+  _localPoint(parentId, pageX, pageY) {
+    try {
+      return JSON.parse(app.engine.toLocalPoint(parentId, pageX, pageY));
+    } catch (error) {
+      console.warn('[canvas] toLocalPoint failed', error);
+      return [pageX, pageY];
+    }
   }
 
   // ---------------------------------------------------------- resize ------
@@ -571,7 +863,7 @@ export class ForgeCanvas extends PanelElement {
       return;
     }
     app.beginGesture();
-    this.overlay.setPointerCapture(event.pointerId);
+    this._capture(event.pointerId);
     this._gesture = {
       kind: 'resize',
       id,
@@ -727,9 +1019,7 @@ export class ForgeCanvas extends PanelElement {
     return [parentRect[0] + x, parentRect[1] + y, width, height];
   }
 
-  /**
-   * @param {number[] | null} [selectionOverride]
-   */
+  /** @param {number[] | null} [selectionOverride] */
   _drawMarkers(selectionOverride = null) {
     const selection = app.state.selection;
     const hover = app.state.hover;
@@ -780,54 +1070,61 @@ export class ForgeCanvas extends PanelElement {
   }
 
   /**
+   * Highlights the container that would receive a drop.
+   *
    * @param {{x: number, y: number}} point
    * @param {string | null} exclude
-   * @returns {string} the container that would receive the drop
+   * @param {string | null} currentParent already-the-parent targets stay quiet
+   * @returns {string} the resolved container id
    */
-  _previewDropTarget(point, exclude) {
+  _previewDropTarget(point, exclude, currentParent) {
     const target = app.engine.dropTarget(point.x, point.y, exclude ?? undefined);
-    const currentParent = this._gesture ? this._gesture.parentId : null;
     this._setMarker('#dropMarker', target && target !== currentParent ? app.rectOf(target) : null);
     return target;
   }
 
-  // ============================================== external drag and drop ===
+  // ============================================ palette / layers drop-in ===
 
-  _wireDropTarget() {
-    const accept = (event) => {
-      const types = event.dataTransfer ? [...event.dataTransfer.types] : [];
-      return types.includes(DRAG_MIME);
-    };
-
-    this.bind(this.overlay, 'dragover', (event) => {
-      const dragEvent = /** @type {DragEvent} */ (event);
-      if (!accept(dragEvent)) {
+  /**
+   * Receives pointer drags started elsewhere in the editor — a blueprint from
+   * the palette, or a layer from the tree. See `core/drag-controller.js` for
+   * why this is not the HTML5 drag-and-drop API.
+   */
+  _wireExternalDrag() {
+    this.listen('drag:move', (payload) => {
+      if (app.state.mode !== 'design' || !app.engine) {
         return;
       }
-      dragEvent.preventDefault();
-      dragEvent.dataTransfer.dropEffect = 'copy';
-      const point = this._toPagePoint(dragEvent);
-      this._previewDropTarget(point, null);
+      if (!this._isOverViewport(payload.clientX, payload.clientY)) {
+        this._setMarker('#dropMarker', null);
+        return;
+      }
+      const point = this._toPagePoint(payload);
+      this._previewDropTarget(point, payload.id ?? null, null);
     });
 
-    this.bind(this.overlay, 'dragleave', () => this._setMarker('#dropMarker', null));
-
-    this.bind(this.overlay, 'drop', (event) => {
-      const dragEvent = /** @type {DragEvent} */ (event);
-      if (!accept(dragEvent)) {
-        return;
-      }
-      dragEvent.preventDefault();
+    this.listen('drag:end', (payload) => {
       this._setMarker('#dropMarker', null);
-
-      const kind = dragEvent.dataTransfer.getData(DRAG_MIME);
-      if (!kind) {
+      if (payload.cancelled || app.state.mode !== 'design' || !app.engine) {
         return;
       }
-      const point = this._toPagePoint(dragEvent);
-      const parent = app.engine.dropTarget(point.x, point.y, undefined) || 'root';
-      const local = JSON.parse(app.engine.toLocalPoint(parent, point.x, point.y));
-      app.addElement(kind, parent, Math.round(local[0]), Math.round(local[1]));
+      if (!this._isOverViewport(payload.clientX, payload.clientY)) {
+        return;
+      }
+      const point = this._toPagePoint(payload);
+      const parent = app.engine.dropTarget(point.x, point.y, payload.id ?? undefined) || 'root';
+      const local = this._localPoint(parent, point.x, point.y);
+
+      if (payload.type === 'blueprint') {
+        app.addElement(payload.kind, parent, Math.round(local[0]), Math.round(local[1]));
+        return;
+      }
+      if (payload.type === 'node' && payload.id) {
+        if (app.reparent(payload.id, parent, -1)) {
+          app.moveElement(payload.id, Math.round(local[0]), Math.round(local[1]));
+          app.select(payload.id);
+        }
+      }
     });
   }
 
@@ -912,72 +1209,13 @@ export class ForgeCanvas extends PanelElement {
     }
     this._editing = null;
     // contenteditable inserts non-breaking spaces; normalise them back.
-    const value = this.textEditor.innerText.split('\u00A0').join(' ');
+    const value = this.textEditor.innerText.split(NBSP).join(' ');
     this.textEditor.setAttribute('data-on', 'false');
     this.textEditor.textContent = '';
     if (commit) {
       app.beginGesture();
       app.setProperty(id, 'content', value);
       app.invalidate();
-    }
-  }
-
-  // ================================================================ zoom ===
-
-  _wireZoom() {
-    this.bind(this.root, 'click', (event) => {
-      const target = /** @type {HTMLElement} */ (event.target);
-      const zoomButton = target.closest('[data-zoom]');
-      if (zoomButton) {
-        const action = zoomButton.getAttribute('data-zoom');
-        if (action === 'in') {
-          app.zoomBy(1.2);
-        } else if (action === 'out') {
-          app.zoomBy(1 / 1.2);
-        } else if (action === 'fit') {
-          this.zoomToFit();
-        }
-        return;
-      }
-      if (target.closest('#zoomValue')) {
-        app.setZoom(1);
-      }
-      if (target.closest('[data-action="exit-preview"]')) {
-        app.setMode('design');
-      }
-    });
-
-    // Ctrl/⌘ + wheel zooms; plain wheel keeps the native scroll behaviour.
-    this.bind(
-      this.viewport,
-      'wheel',
-      (event) => {
-        const wheelEvent = /** @type {WheelEvent} */ (event);
-        if (!wheelEvent.ctrlKey && !wheelEvent.metaKey) {
-          return;
-        }
-        wheelEvent.preventDefault();
-        app.zoomBy(wheelEvent.deltaY < 0 ? 1.1 : 1 / 1.1);
-      },
-      { passive: false }
-    );
-
-    this._syncZoomLabel();
-  }
-
-  /** Scales the page so it fits the visible viewport. */
-  zoomToFit() {
-    const available = this.viewport.clientWidth - 96;
-    if (available <= 0 || !this._pageWidth) {
-      return;
-    }
-    app.setZoom(Math.min(1, available / this._pageWidth));
-  }
-
-  _syncZoomLabel() {
-    const label = this.$('#zoomValue');
-    if (label) {
-      label.textContent = `${Math.round(app.state.zoom * 100)}%`;
     }
   }
 }

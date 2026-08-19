@@ -77,14 +77,17 @@ def main() -> int:
         print("   Build the engine first:  wasm-pack build --target web\n")
 
     url = f"http://{host}:{port}/"
+    # The test runner starts this server itself and drives its own browser.
+    open_browser = os.environ.get("FORGE_NO_BROWSER", "") == ""
     try:
         with ReusableServer((host, port), ForgeHandler) as httpd:
             print(f"Forge is served from {ROOT}")
             print(f"Open {url}   (Ctrl+C to stop)\n")
-            try:
-                webbrowser.open(url)
-            except Exception:  # noqa: BLE001 - a headless box has no browser
-                pass
+            if open_browser:
+                try:
+                    webbrowser.open(url)
+                except Exception:  # noqa: BLE001 - a headless box has no browser
+                    pass
             httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")

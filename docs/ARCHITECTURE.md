@@ -160,6 +160,25 @@ absolutely-positioned `<div>`s. During a drag the canvas paints a *predicted*
 rect immediately and lets the frame's next measurement correct it, so the
 outline never lags the pointer.
 
+### Dragging is pointer-based, not HTML5 drag-and-drop
+
+`core/drag-controller.js` owns every drag that crosses a panel boundary —
+palette → canvas, and layers → canvas or another layer row. It arms on
+`pointerdown`, starts once the pointer has travelled 4px, follows with a ghost
+element in the top-level document, and emits `drag:start` / `drag:move` /
+`drag:end` on the app bus. Whichever panel is under the cursor paints its own
+drop affordance and acts on the drop.
+
+The HTML5 Drag and Drop API was tried first and abandoned. It is unreliable
+across shadow boundaries, `draggable` on a form control behaves differently per
+browser, `dragover` does not give a usable position everywhere, it has no touch
+story, and the drag image cannot be styled. Pointer Events have none of those
+problems — and, importantly, they are testable: CDP can synthesise real input,
+whereas a native drag cannot be started from script at all.
+
+Canvas-internal move and resize gestures do *not* go through the controller.
+They never leave the canvas, so they take their own pointer capture directly.
+
 ### Panels
 
 Each is a Custom Element extending `PanelElement`, which attaches the shadow
@@ -167,12 +186,28 @@ root, injects `SHARED_CSS` plus the component's own styles, and disposes every
 subscription on disconnect. Panels are independent: deleting one from
 `index.html` and its import from `main.js` removes it cleanly.
 
-Two panels are pure renderers over data files:
+**Every shell slot is a grid container and every panel host is a stretched
+grid item.** This is a load-bearing rule, not a style choice. A custom element
+defaults to `display: block` with auto height; put one in a plain block
+container and `:host` collapses to zero height while its absolutely-positioned
+innards still paint. The result is a panel you can see but cannot click — the
+iframe renders, `getBoundingClientRect` reports a sane box, and every pointer
+event goes to the container behind it. `SHARED_CSS` sets `:host { height: 100% }`
+and `css/shell.css` makes each slot a single-cell grid, which closes the hole
+from both sides.
+
+The shell is: top bar, icon rail, left dock (Elements or Layers), stage, right
+inspector, status bar. `forge-rail` owns which dock panel is visible by
+toggling `hidden` on elements tagged with `data-panel` in `index.html`.
+
+Three panels are pure renderers over data files:
 
 * `forge-palette` renders `registry/elements.js`;
-* `forge-inspector` renders `registry/inspector-schema.js`.
+* `forge-inspector` renders `registry/inspector-schema.js`;
+* `core/shortcuts.js` generates its single-letter element keys from the same
+  element registry, so a palette hint and its key cannot drift apart.
 
-Neither contains a branch on element type. That is the extension point.
+None contains a branch on element type. That is the extension point.
 
 ---
 

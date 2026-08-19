@@ -19,10 +19,10 @@ export class ForgeStatus extends PanelElement {
     .root {
       display: flex;
       align-items: center;
-      gap: var(--gap-3);
+      gap: 12px;
       height: 100%;
       padding: 0 10px;
-      background: var(--surface-app);
+      background: var(--surface-chrome);
       border-top: 1px solid var(--line);
       font-size: var(--text-xs);
       color: var(--ink-faint);
@@ -42,7 +42,7 @@ export class ForgeStatus extends PanelElement {
     .message[data-tone="danger"] { color: var(--danger); }
     .message[data-tone="info"] { color: var(--ink-dim); }
 
-    .facts { display: flex; align-items: center; gap: var(--gap-3); flex: 0 0 auto; }
+    .facts { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
     .fact { display: flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
     .fact strong { color: var(--ink-dim); font-weight: 500; }
     .dot { width: 1px; height: 12px; background: var(--line); }

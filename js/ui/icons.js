@@ -68,6 +68,31 @@ export const GLYPHS = Object.freeze({
     '<path d="M5 1.8v12.4M11 1.8v12.4M1.8 5h12.4M1.8 11h12.4"/>',
   info: '<circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.6M8 5.2v.9"/>',
   warning: '<path d="M8 2.6 14.2 13H1.8Z"/><path d="M8 6.6v3M8 11.2v.7"/>',
+
+  // --- device breakpoints ---------------------------------------------------
+  phone: '<rect x="4.6" y="1.8" width="6.8" height="12.4" rx="1.6"/><path d="M7 12.4h2"/>',
+  tablet: '<rect x="3" y="1.8" width="10" height="12.4" rx="1.6"/><path d="M7 12.3h2"/>',
+  laptop:
+    '<rect x="2.6" y="3.2" width="10.8" height="7.4" rx="1.2"/><path d="M1.4 12.8h13.2"/>',
+  desktop:
+    '<rect x="1.6" y="2.6" width="12.8" height="8.6" rx="1.3"/><path d="M6 13.6h4M8 11.2v2.4"/>',
+
+  // --- panel / chrome -------------------------------------------------------
+  settings:
+    '<circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v1.8M8 12.6v1.8M14.4 8h-1.8M3.4 8H1.6M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3M12.5 12.5l-1.3-1.3M4.8 4.8 3.5 3.5"/>',
+  share:
+    '<circle cx="12.2" cy="3.8" r="1.9"/><circle cx="3.8" cy="8" r="1.9"/><circle cx="12.2" cy="12.2" r="1.9"/><path d="M5.5 7.1l5-2.4M5.5 8.9l5 2.4"/>',
+  rocket:
+    '<path d="M6.4 9.6 3.2 8.8l1.8-2.2a7.6 7.6 0 0 1 6.4-2.8l2.2.1.1 2.2a7.6 7.6 0 0 1-2.8 6.4l-2.2 1.8-.8-3.2Z"/><circle cx="10" cy="6" r="1.1"/><path d="M6.2 9.8 3.4 12.6"/>',
+  html: '<path d="M5.6 4.4 2.2 8l3.4 3.6M10.4 4.4 13.8 8l-3.4 3.6"/>',
+  ruler:
+    '<rect x="1.6" y="5" width="12.8" height="6" rx="1.2"/><path d="M4.4 5v2M7 5v3M9.6 5v2M12.2 5v3"/>',
+  spacing:
+    '<rect x="3.4" y="3.4" width="9.2" height="9.2" rx="1.2"/><rect x="6" y="6" width="4" height="4" rx="0.8" opacity=".55"/>',
+  droplet: '<path d="M8 2.2S3.6 7 3.6 9.6a4.4 4.4 0 0 0 8.8 0C12.4 7 8 2.2 8 2.2Z"/>',
+  sparkle:
+    '<path d="M8 2.2 9.3 6l3.8 1.3L9.3 8.6 8 12.4 6.7 8.6 2.9 7.3 6.7 6Z"/>',
+  help: '<circle cx="8" cy="8" r="6"/><path d="M6.4 6.3a1.7 1.7 0 1 1 2 1.9v.9"/><path d="M8 11.4v.5"/>',
 });
 
 /**

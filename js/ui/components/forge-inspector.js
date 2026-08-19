@@ -12,13 +12,13 @@ import { PanelElement, esc } from '../panel-element.js';
 import { icon } from '../icons.js';
 import { app } from '../../core/app.js';
 import { blueprintFor } from '../../registry/elements.js';
-import { sectionsFor, PAGE_FIELDS } from '../../registry/inspector-schema.js';
+import { sectionsFor, PAGE_FIELDS, INSPECTOR_TABS } from '../../registry/inspector-schema.js';
 
 export class ForgeInspector extends PanelElement {
   static styles = `
     .root {
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr);
+      display: flex;
+      flex-direction: column;
       height: 100%;
       min-height: 0;
       background: var(--surface-panel);
@@ -27,12 +27,22 @@ export class ForgeInspector extends PanelElement {
     .head {
       display: flex;
       align-items: center;
-      gap: 6px;
-      height: 34px;
+      gap: 8px;
+      height: 38px;
+      flex: 0 0 auto;
       padding: 0 6px 0 10px;
       border-bottom: 1px solid var(--line);
+      background: var(--surface-header);
     }
-    .head__icon { color: var(--accent); }
+    .head__icon {
+      display: grid;
+      place-items: center;
+      width: 22px; height: 22px;
+      flex: 0 0 auto;
+      border-radius: var(--radius-sm);
+      background: var(--accent-wash);
+      color: var(--accent);
+    }
     .head__text { flex: 1 1 auto; min-width: 0; }
     .head__title {
       display: block;
@@ -50,11 +60,29 @@ export class ForgeInspector extends PanelElement {
       color: var(--ink-faint);
     }
     .head__actions { display: flex; gap: 1px; flex: 0 0 auto; }
+    .head__actions .icon-btn { width: 24px; height: 24px; }
+
+    .body { flex: 1 1 auto; min-height: 0; }
 
     .grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
+      gap: 8px 10px;
+      padding-top: 6px;
+    }
+
+    /* The unit suffix is painted inside the control; the label sits beside it
+       (see .field--row) so long names can never collide with the value. */
+    .unit-field { position: relative; min-width: 0; }
+    .unit-field .input { padding-right: 22px; }
+    .unit-field__unit {
+      position: absolute;
+      right: 7px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--ink-faint);
+      font-size: var(--text-xs);
+      pointer-events: none;
     }
 
     .custom-row {
@@ -72,37 +100,57 @@ export class ForgeInspector extends PanelElement {
     .add-row .icon-btn { width: 22px; height: 22px; }
 
     .note {
-      margin: 8px 0 0;
+      margin: 10px 0 0;
       color: var(--ink-faint);
       font-size: var(--text-xs);
-      line-height: 1.5;
+      line-height: 1.6;
     }
   `;
 
   template() {
     return `
       <div class="head" id="head"></div>
-      <div class="scroll" id="body"></div>
+      <div class="tabs" role="tablist" id="tabs">
+        ${INSPECTOR_TABS.map(
+          (tab, index) => `
+            <button class="tab" role="tab" data-tab="${tab.id}"
+                    aria-selected="${index === 0}">${esc(tab.label)}</button>`
+        ).join('')}
+      </div>
+      <div class="body scroll" id="body"></div>
     `;
   }
 
   mounted() {
-    /** collapsed section ids @type {Set<string>} */
+    /** @type {Set<string>} collapsed section ids */
     this._collapsed = new Set();
+    this._tab = INSPECTOR_TABS[0].id;
     /** guards re-rendering while the user types @type {boolean} */
     this._editing = false;
+    this._sliderOpen = false;
+    this._typingOpen = false;
 
     const body = this.$('#body');
-    this.bind(body, 'input', (event) => this._onInput(/** @type {Event} */ (event)));
-    this.bind(body, 'change', (event) => this._onChange(/** @type {Event} */ (event)));
-    this.bind(body, 'click', (event) => this._onClick(/** @type {MouseEvent} */ (event)));
+    this.bind(body, 'input', (e) => this._onInput(/** @type {Event} */ (e)));
+    this.bind(body, 'change', (e) => this._onChange(/** @type {Event} */ (e)));
+    this.bind(body, 'click', (e) => this._onClick(/** @type {MouseEvent} */ (e)));
+    this.bind(body, 'keydown', (e) => e.stopPropagation());
     this.bind(body, 'focusin', () => {
       this._editing = true;
     });
     this.bind(body, 'focusout', () => {
       this._editing = false;
     });
-    this.bind(this.$('#head'), 'click', (event) => this._onHeadClick(/** @type {MouseEvent} */ (event)));
+
+    this.bind(this.$('#head'), 'click', (e) => this._onHeadClick(/** @type {MouseEvent} */ (e)));
+    this.bind(this.$('#tabs'), 'click', (event) => {
+      const tab = /** @type {HTMLElement} */ (event.target).closest('[data-tab]');
+      if (tab) {
+        this._tab = tab.getAttribute('data-tab');
+        this._syncTabs();
+        this.render();
+      }
+    });
 
     this.listen(['ready', 'selection', 'document', 'page'], () => this.render());
     this.listen('node', () => {
@@ -113,12 +161,19 @@ export class ForgeInspector extends PanelElement {
     this.render();
   }
 
+  _syncTabs() {
+    for (const tab of this.$$('[data-tab]')) {
+      tab.setAttribute('aria-selected', String(tab.getAttribute('data-tab') === this._tab));
+    }
+  }
+
   render() {
     if (!app.engine) {
       return;
     }
     const id = app.state.selection;
     const node = id ? app.getNode(id) : null;
+    this._syncTabs();
 
     if (!node) {
       this._renderPage();
@@ -131,7 +186,7 @@ export class ForgeInspector extends PanelElement {
 
   _renderPage() {
     this.$('#head').innerHTML = `
-      <span class="head__icon">${icon('root', 16)}</span>
+      <span class="head__icon">${icon('root', 14)}</span>
       <span class="head__text">
         <span class="head__title">Page</span>
         <span class="head__sub">nothing selected</span>
@@ -139,22 +194,34 @@ export class ForgeInspector extends PanelElement {
     `;
 
     const page = app.getPage();
-    this.$('#body').innerHTML = `
-      <section class="section" data-open="true" data-section="page">
-        <button class="section__head" type="button">
-          <span class="section__caret">${icon('chevronDown', 12)}</span>
-          <span class="section__title">Document</span>
-        </button>
-        <div class="section__body">
-          <div class="grid">
-            ${PAGE_FIELDS.map((field) => this._renderField(field, page, 'page')).join('')}
-          </div>
-          <p class="note">
-            Select an element on the canvas to edit it, or drag a new one in from the left rail.
-          </p>
-        </div>
-      </section>
-    `;
+    const advanced = this._tab === 'advanced';
+
+    this.$('#body').innerHTML = advanced
+      ? `<section class="section" data-open="true" data-section="page-advanced">
+           <button class="section__head" type="button">
+             <span class="section__title">Document</span>
+             <span class="section__caret">${icon('chevronDown', 12)}</span>
+           </button>
+           <div class="section__body">
+             <p class="note">
+               Select an element to edit its markup attributes and custom CSS.
+             </p>
+           </div>
+         </section>`
+      : `<section class="section" data-open="true" data-section="page">
+           <button class="section__head" type="button">
+             <span class="section__title">Document</span>
+             <span class="section__caret">${icon('chevronDown', 12)}</span>
+           </button>
+           <div class="section__body">
+             <div class="grid">
+               ${PAGE_FIELDS.map((field) => this._renderField(field, page, 'page')).join('')}
+             </div>
+             <p class="note">
+               Select an element on the canvas, or drag a new one in from the left rail.
+             </p>
+           </div>
+         </section>`;
   }
 
   // --------------------------------------------------------------- node ---
@@ -166,38 +233,40 @@ export class ForgeInspector extends PanelElement {
   _renderNode(id, node) {
     const blueprint = blueprintFor(node.kind);
     this.$('#head').innerHTML = `
-      <span class="head__icon">${icon(blueprint.icon, 16)}</span>
+      <span class="head__icon">${icon(blueprint.icon, 14)}</span>
       <span class="head__text">
         <span class="head__title">${esc(node.name)}</span>
         <span class="head__sub">${esc(node.kind)} · ${esc(id)}</span>
       </span>
       <span class="head__actions">
-        <button class="icon-btn" data-action="backward" title="Send backward">${icon('sendBackward', 14)}</button>
-        <button class="icon-btn" data-action="forward" title="Bring forward">${icon('bringForward', 14)}</button>
+        <button class="icon-btn" data-action="backward" title="Send backward (Ctrl+[)">${icon('sendBackward', 14)}</button>
+        <button class="icon-btn" data-action="forward" title="Bring forward (Ctrl+])">${icon('bringForward', 14)}</button>
         <button class="icon-btn" data-action="duplicate" title="Duplicate (Ctrl+D)">${icon('duplicate', 14)}</button>
         <button class="icon-btn btn--danger" data-action="delete" title="Delete (Del)">${icon('trash', 14)}</button>
       </span>
     `;
 
-    const sections = sectionsFor(node);
-    this.$('#body').innerHTML =
-      sections
-        .map(({ section, fields }) => {
-          const open = !this._collapsed.has(section.id);
-          return `
-            <section class="section" data-open="${open}" data-section="${esc(section.id)}">
-              <button class="section__head" type="button">
-                <span class="section__caret">${icon('chevronDown', 12)}</span>
-                <span class="section__title">${esc(section.title)}</span>
-              </button>
-              <div class="section__body">
-                <div class="grid">
-                  ${fields.map((field) => this._renderField(field, node, 'node')).join('')}
-                </div>
+    const sections = sectionsFor(node, this._tab);
+    const rendered = sections
+      .map(({ section, fields }) => {
+        const open = !this._collapsed.has(section.id);
+        return `
+          <section class="section" data-open="${open}" data-section="${esc(section.id)}">
+            <button class="section__head" type="button">
+              <span class="section__title">${esc(section.title)}</span>
+              <span class="section__caret">${icon('chevronDown', 12)}</span>
+            </button>
+            <div class="section__body">
+              <div class="grid">
+                ${fields.map((field) => this._renderField(field, node, 'node')).join('')}
               </div>
-            </section>`;
-        })
-        .join('') + this._renderCustomSection(node);
+            </div>
+          </section>`;
+      })
+      .join('');
+
+    this.$('#body').innerHTML =
+      rendered + (this._tab === 'advanced' ? this._renderCustomSection(node) : '');
   }
 
   /**
@@ -214,9 +283,9 @@ export class ForgeInspector extends PanelElement {
     return `
       <section class="section" data-open="${open}" data-section="custom">
         <button class="section__head" type="button">
-          <span class="section__caret">${icon('chevronDown', 12)}</span>
           <span class="section__title">Custom CSS</span>
           <span class="section__count">${entries.length || ''}</span>
+          <span class="section__caret">${icon('chevronDown', 12)}</span>
         </button>
         <div class="section__body">
           ${entries
@@ -254,82 +323,109 @@ export class ForgeInspector extends PanelElement {
     const wide = field.span === 2 ? ' field--wide' : '';
     const common = `data-key="${esc(field.key)}" data-scope="${scope}" data-live="${field.live ? 'true' : 'false'}"`;
 
-    let control;
     switch (field.type) {
       case 'number':
-        control = `<input class="input" type="number" ${common}
-          value="${esc(value)}"
-          ${field.min !== undefined ? `min="${field.min}"` : ''}
-          ${field.max !== undefined ? `max="${field.max}"` : ''}
-          step="${field.step ?? 1}" />`;
-        break;
+        return `
+          <div class="field field--row${wide}">
+            <label class="field__label" title="${esc(field.label)}">${esc(field.label)}</label>
+            <span class="unit-field">
+              <input class="input" type="number" ${common}
+                value="${esc(value)}"
+                ${field.min !== undefined ? `min="${field.min}"` : ''}
+                ${field.max !== undefined ? `max="${field.max}"` : ''}
+                step="${field.step ?? 1}"
+                aria-label="${esc(field.label)}" />
+              ${field.unit ? `<span class="unit-field__unit">${esc(field.unit)}</span>` : ''}
+            </span>
+          </div>`;
 
       case 'textarea':
-        control = `<textarea class="textarea" ${common}
-          placeholder="${esc(field.placeholder || '')}">${esc(value)}</textarea>`;
-        break;
+        return this._wrap(
+          field,
+          wide,
+          `<textarea class="textarea" ${common} placeholder="${esc(field.placeholder || '')}">${esc(value)}</textarea>`
+        );
 
       case 'color':
-        control = `
-          <div class="color">
-            <span class="color__well" style="background:${esc(value)}">
-              <input type="color" ${common} value="${esc(value)}" aria-label="${esc(field.label)}" />
-            </span>
-            <input class="input" data-mirror="${esc(field.key)}" data-scope="${scope}"
-                   value="${esc(value)}" spellcheck="false" />
-          </div>`;
-        break;
+        return this._wrap(
+          field,
+          wide,
+          `<div class="color">
+             <span class="color__well" style="background:${esc(value)}">
+               <input type="color" ${common} value="${esc(value)}" aria-label="${esc(field.label)}" />
+             </span>
+             <input class="input" data-mirror="${esc(field.key)}" data-scope="${scope}"
+                    value="${esc(value)}" spellcheck="false" />
+           </div>`
+        );
 
       case 'select':
-        control = `<select class="select" ${common}>
-          ${(field.options || [])
-            .map(
-              (option) =>
-                `<option value="${esc(option.value)}" ${option.value === value ? 'selected' : ''}>${esc(
-                  option.label
-                )}</option>`
-            )
-            .join('')}
-        </select>`;
-        break;
+        return this._wrap(
+          field,
+          wide,
+          `<select class="select" ${common}>
+             ${(field.options || [])
+               .map(
+                 (option) =>
+                   `<option value="${esc(option.value)}" ${option.value === value ? 'selected' : ''}>${esc(option.label)}</option>`
+               )
+               .join('')}
+           </select>`
+        );
 
       case 'segmented':
-        control = `<div class="segmented" ${common} role="group" aria-label="${esc(field.label)}">
-          ${(field.options || [])
-            .map(
-              (option) =>
-                `<button type="button" data-value="${esc(option.value)}"
-                   aria-pressed="${option.value === value}"
-                   title="${esc(option.label)}">${
-                     option.icon ? icon(option.icon, 12) : esc(option.label)
-                   }</button>`
-            )
-            .join('')}
-        </div>`;
-        break;
+        return this._wrap(
+          field,
+          wide,
+          `<div class="segmented" ${common} role="group" aria-label="${esc(field.label)}">
+             ${(field.options || [])
+               .map(
+                 (option) =>
+                   `<button type="button" data-value="${esc(option.value)}"
+                      aria-pressed="${option.value === value}"
+                      title="${esc(option.label)}">${esc(option.label)}</button>`
+               )
+               .join('')}
+           </div>`
+        );
 
       case 'toggle':
-        control = `<div class="switch" ${common} role="switch" tabindex="0"
-                        aria-checked="${value === 'true'}">
-          <span class="switch__label">${esc(field.label)}</span>
-          <span class="switch__track"></span>
-        </div>`;
-        // The switch renders its own label.
-        return `<div class="field${wide}">${control}</div>`;
+        // The switch carries its own label.
+        return `
+          <div class="field${wide}">
+            <div class="switch" ${common} role="switch" tabindex="0" aria-checked="${value === 'true'}">
+              <span class="switch__label">${esc(field.label)}</span>
+              <span class="switch__track"></span>
+            </div>
+          </div>`;
 
       case 'slider':
-        control = `<input class="range" type="range" ${common}
-          min="${field.min ?? 0}" max="${field.max ?? 1}" step="${field.step ?? 0.01}"
-          value="${esc(value || '1')}" />`;
-        break;
+        return this._wrap(
+          field,
+          wide,
+          `<input class="range" type="range" ${common}
+             min="${field.min ?? 0}" max="${field.max ?? 1}" step="${field.step ?? 0.01}"
+             value="${esc(value || '1')}" aria-label="${esc(field.label)}" />`
+        );
 
       case 'text':
       default:
-        control = `<input class="input" type="text" ${common}
-          value="${esc(value)}" placeholder="${esc(field.placeholder || '')}" spellcheck="false" />`;
-        break;
+        return this._wrap(
+          field,
+          wide,
+          `<input class="input" type="text" ${common}
+             value="${esc(value)}" placeholder="${esc(field.placeholder || '')}" spellcheck="false" />`
+        );
     }
+  }
 
+  /**
+   * @param {any} field
+   * @param {string} wide
+   * @param {string} control
+   * @returns {string}
+   */
+  _wrap(field, wide, control) {
     return `
       <div class="field${wide}">
         <label class="field__label">${esc(field.label)}</label>
@@ -348,10 +444,7 @@ export class ForgeInspector extends PanelElement {
     const mirrorKey = target.getAttribute('data-mirror');
     if (mirrorKey) {
       const hex = /** @type {HTMLInputElement} */ (target).value;
-      if (!this._typingOpen) {
-        this._typingOpen = true;
-        app.beginGesture();
-      }
+      this._openTypingGesture();
       this._commit(mirrorKey, target.getAttribute('data-scope'), hex, true);
       this._syncColorWell(target, hex);
       return;
@@ -361,17 +454,17 @@ export class ForgeInspector extends PanelElement {
     if (!key) {
       return;
     }
-    const live = target.getAttribute('data-live') === 'true';
     const scope = target.getAttribute('data-scope');
     const value = /** @type {HTMLInputElement} */ (target).value;
+    const isColor = target.getAttribute('type') === 'color';
 
-    if (target.classList.contains('range') || target.getAttribute('type') === 'color') {
+    if (target.classList.contains('range') || isColor) {
       if (!this._sliderOpen) {
         this._sliderOpen = true;
         app.beginGesture();
       }
       this._commit(key, scope, value, true);
-      if (target.getAttribute('type') === 'color') {
+      if (isColor) {
         this._syncColorWell(target, value);
       }
       return;
@@ -379,13 +472,14 @@ export class ForgeInspector extends PanelElement {
 
     // Text-ish inputs write live so the canvas keeps up with typing; the undo
     // entry is opened once per focus, not per keystroke.
+    this._openTypingGesture();
+    this._commit(key, scope, value, true);
+  }
+
+  _openTypingGesture() {
     if (!this._typingOpen) {
       this._typingOpen = true;
       app.beginGesture();
-    }
-    this._commit(key, scope, value, true);
-    if (live) {
-      this._syncColorWell(target, value);
     }
   }
 
@@ -395,12 +489,15 @@ export class ForgeInspector extends PanelElement {
     this._sliderOpen = false;
     this._typingOpen = false;
 
-    // A row in the Custom CSS section.
     const customProperty = target.getAttribute('data-custom-value');
     if (customProperty) {
       const id = app.state.selection;
       if (id) {
-        app.setProperty(id, `custom.${customProperty}`, /** @type {HTMLInputElement} */ (target).value);
+        app.setProperty(
+          id,
+          `custom.${customProperty}`,
+          /** @type {HTMLInputElement} */ (target).value
+        );
       }
       return;
     }
@@ -409,9 +506,12 @@ export class ForgeInspector extends PanelElement {
     if (!key) {
       return;
     }
-    const scope = target.getAttribute('data-scope');
-    const value = /** @type {HTMLInputElement} */ (target).value;
-    this._commit(key, scope, value, false);
+    this._commit(
+      key,
+      target.getAttribute('data-scope'),
+      /** @type {HTMLInputElement} */ (target).value,
+      false
+    );
   }
 
   /** @param {MouseEvent} event */

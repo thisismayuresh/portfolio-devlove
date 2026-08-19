@@ -1,5 +1,5 @@
 /**
- * Top application bar: branding, history, mode switch and file actions.
+ * Top application bar: branding, document name, mode switch, file actions.
  *
  * @module ui/components/forge-toolbar
  */
@@ -14,19 +14,18 @@ export class ForgeToolbar extends PanelElement {
     .root {
       display: flex;
       align-items: center;
-      gap: var(--gap-2);
+      gap: 10px;
       height: 100%;
-      padding: 0 8px 0 10px;
-      background: var(--surface-app);
-      border-bottom: 1px solid var(--line);
+      padding: 0 10px 0 12px;
+      background: var(--surface-chrome);
     }
 
-    .brand { display: flex; align-items: center; gap: 8px; padding-right: 4px; }
+    .brand { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
     .brand__mark {
-      width: 18px; height: 18px;
-      border-radius: 5px;
+      width: 20px; height: 20px;
+      border-radius: 6px;
       background: linear-gradient(150deg, var(--accent), #8a5cff);
-      box-shadow: 0 2px 6px rgba(74,140,255,.32);
+      box-shadow: 0 2px 8px rgba(76, 141, 255, 0.35);
     }
     .brand__name {
       font-size: var(--text-md);
@@ -35,30 +34,34 @@ export class ForgeToolbar extends PanelElement {
       letter-spacing: -0.01em;
     }
 
-    .divider { width: 1px; height: 18px; background: var(--line); flex: 0 0 auto; }
-
-    .group { display: flex; align-items: center; gap: 2px; }
+    .sep { width: 1px; height: 18px; background: var(--line); flex: 0 0 auto; }
     .spacer { flex: 1 1 auto; }
+    .group { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
 
+    /* Document title doubles as a rename field. */
     .doc {
       min-width: 0;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 0 6px;
-      color: var(--ink-dim);
-      font-size: var(--text-sm);
-    }
-    .doc__name {
-      max-width: 260px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      max-width: 320px;
+      height: 26px;
+      padding: 0 8px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      background: transparent;
       color: var(--ink);
+      font: inherit;
+      font-size: var(--text-sm);
+      text-align: center;
+      text-overflow: ellipsis;
     }
-    .doc__nodes { font-variant-numeric: tabular-nums; color: var(--ink-faint); }
+    .doc:hover { border-color: var(--line); background: var(--surface-input); }
+    .doc:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: var(--surface-input);
+      text-align: left;
+    }
 
-    .mode { width: 168px; }
+    .mode { width: 158px; }
     .mode button { height: 22px; font-size: var(--text-sm); }
   `;
 
@@ -69,25 +72,7 @@ export class ForgeToolbar extends PanelElement {
         <span class="brand__name">Forge</span>
       </div>
 
-      <div class="divider"></div>
-
-      <div class="group">
-        <button class="icon-btn" data-action="undo" title="Undo (Ctrl+Z)" aria-label="Undo">
-          ${icon('undo')}
-        </button>
-        <button class="icon-btn" data-action="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
-          ${icon('redo')}
-        </button>
-      </div>
-
-      <div class="divider"></div>
-
-      <div class="doc">
-        <span class="doc__name" id="doc-name">Untitled page</span>
-        <span class="doc__nodes" id="doc-nodes"></span>
-      </div>
-
-      <div class="spacer"></div>
+      <div class="sep"></div>
 
       <div class="segmented mode" role="group" aria-label="Editor mode">
         <button data-mode="design" aria-pressed="true">${icon('cursor', 13)}<span>Design</span></button>
@@ -95,27 +80,46 @@ export class ForgeToolbar extends PanelElement {
       </div>
 
       <div class="spacer"></div>
+      <input class="doc" id="docName" aria-label="Document name" spellcheck="false" />
+      <div class="spacer"></div>
 
       <div class="group">
-        <button class="btn btn--ghost" data-action="new" title="Clear the canvas">
-          ${icon('reset', 14)}<span>New</span>
+        <button class="icon-btn" data-action="new" title="Clear the canvas" aria-label="New">
+          ${icon('reset', 15)}
         </button>
-        <button class="btn btn--ghost" data-action="open" title="Open a .forge.json project">
-          ${icon('upload', 14)}<span>Open</span>
+        <button class="icon-btn" data-action="open" title="Open a .forge.json project" aria-label="Open">
+          ${icon('upload', 15)}
         </button>
-        <button class="btn btn--ghost" data-action="save" title="Save the project file">
-          ${icon('save', 14)}<span>Save</span>
+        <button class="icon-btn" data-action="save" title="Save the project file" aria-label="Save">
+          ${icon('save', 15)}
         </button>
-        <button class="btn btn--primary" data-action="export" title="Download a standalone HTML file">
-          ${icon('download', 14)}<span>Export HTML</span>
+        <button class="icon-btn" data-action="code" title="Copy the exported HTML" aria-label="Copy HTML">
+          ${icon('html', 15)}
         </button>
       </div>
+
+      <div class="sep"></div>
+
+      <button class="btn btn--primary" data-action="export" title="Download a standalone HTML file">
+        ${icon('download', 14)}<span>Export</span>
+      </button>
     `;
   }
 
   mounted() {
-    this.bind(this.root, 'click', (event) => this._onClick(/** @type {MouseEvent} */ (event)));
-    this.listen(['ready', 'document', 'page'], () => this._sync());
+    this.bind(this.root, 'click', (e) => this._onClick(/** @type {MouseEvent} */ (e)));
+
+    const docName = /** @type {HTMLInputElement} */ (this.$('#docName'));
+    this.bind(docName, 'change', () => app.setPageProperty('title', docName.value));
+    this.bind(docName, 'keydown', (event) => {
+      const keyEvent = /** @type {KeyboardEvent} */ (event);
+      keyEvent.stopPropagation();
+      if (keyEvent.key === 'Enter') {
+        docName.blur();
+      }
+    });
+
+    this.listen(['ready', 'document', 'page', 'node'], () => this._sync());
     this.listen('mode', (mode) => this._syncMode(mode));
     this._sync();
   }
@@ -123,6 +127,7 @@ export class ForgeToolbar extends PanelElement {
   /** @param {MouseEvent} event */
   _onClick(event) {
     const target = /** @type {HTMLElement} */ (event.target);
+
     const modeButton = target.closest('[data-mode]');
     if (modeButton) {
       app.setMode(/** @type {'design' | 'preview'} */ (modeButton.getAttribute('data-mode')));
@@ -134,12 +139,6 @@ export class ForgeToolbar extends PanelElement {
       return;
     }
     switch (actionButton.getAttribute('data-action')) {
-      case 'undo':
-        app.undo();
-        break;
-      case 'redo':
-        app.redo();
-        break;
       case 'new':
         this._confirmReset();
         break;
@@ -148,6 +147,9 @@ export class ForgeToolbar extends PanelElement {
         break;
       case 'save':
         this._saveProject();
+        break;
+      case 'code':
+        this._copyHtml();
         break;
       case 'export':
         this._exportHtml();
@@ -158,15 +160,14 @@ export class ForgeToolbar extends PanelElement {
   }
 
   _confirmReset() {
-    const ok = window.confirm('Clear every element on the canvas? This can be undone with Ctrl+Z.');
-    if (ok) {
+    if (window.confirm('Clear every element on the canvas? This can be undone with Ctrl+Z.')) {
       app.resetProject();
     }
   }
 
   async _openProject() {
     try {
-      const text = await pickTextFile('.json,.forge.json,application/json');
+      const text = await pickTextFile('.json,application/json');
       if (text !== null) {
         app.loadProject(text);
       }
@@ -176,18 +177,30 @@ export class ForgeToolbar extends PanelElement {
   }
 
   _saveProject() {
-    const page = app.getPage();
-    downloadText(`${slug(page.title)}.forge.json`, app.serializeProject(), 'application/json');
+    downloadText(`${slug(app.getPage().title)}.forge.json`, app.serializeProject(), 'application/json');
     app.setStatus('Project saved to your downloads');
   }
 
-  _exportHtml() {
-    const page = app.getPage();
+  async _copyHtml() {
     const html = app.exportHtml();
     if (!html) {
       return;
     }
-    downloadText(`${slug(page.title)}.html`, html, 'text/html');
+    try {
+      await navigator.clipboard.writeText(html);
+      app.setStatus('Exported HTML copied to the clipboard');
+    } catch (error) {
+      // Clipboard access needs a secure context and user permission.
+      app.setStatus('Clipboard blocked — use Export to download instead', 'danger');
+    }
+  }
+
+  _exportHtml() {
+    const html = app.exportHtml();
+    if (!html) {
+      return;
+    }
+    downloadText(`${slug(app.getPage().title)}.html`, html, 'text/html');
     app.setStatus('Exported a standalone HTML file');
   }
 
@@ -195,23 +208,9 @@ export class ForgeToolbar extends PanelElement {
     if (!app.engine) {
       return;
     }
-    const page = app.getPage();
-    const nameNode = this.$('#doc-name');
-    if (nameNode) {
-      nameNode.textContent = page.title || 'Untitled page';
-    }
-    const countNode = this.$('#doc-nodes');
-    if (countNode) {
-      const count = app.engine.nodeCount() - 1; // the page body itself is not an element
-      countNode.textContent = `· ${count} element${count === 1 ? '' : 's'}`;
-    }
-    const undo = this.$('[data-action="undo"]');
-    const redo = this.$('[data-action="redo"]');
-    if (undo) {
-      /** @type {HTMLButtonElement} */ (undo).disabled = !app.engine.canUndo();
-    }
-    if (redo) {
-      /** @type {HTMLButtonElement} */ (redo).disabled = !app.engine.canRedo();
+    const input = /** @type {HTMLInputElement} */ (this.$('#docName'));
+    if (input && this.shadowRoot.activeElement !== input) {
+      input.value = app.getPage().title || 'Untitled page';
     }
   }
 

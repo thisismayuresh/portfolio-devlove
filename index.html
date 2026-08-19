@@ -9,17 +9,23 @@
     <link rel="stylesheet" href="./css/shell.css" />
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234a8cff'/%3E%3Cpath d='M10 22V10h9M10 16h7' stroke='%23fff' stroke-width='2.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234c8dff'/%3E%3Cpath d='M10 22V10h9M10 16h7' stroke='%23fff' stroke-width='2.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"
     />
   </head>
   <body>
-    <!-- Shell frame. Panels are custom elements; each owns its Shadow DOM. -->
+    <!--
+      Shell frame. Every panel is a custom element that owns its Shadow DOM.
+      Each slot is a grid container (see css/shell.css) so the panel hosts are
+      stretched grid items with a real height.
+    -->
     <div class="shell" id="shell" data-mode="design" hidden>
       <forge-toolbar class="shell__topbar"></forge-toolbar>
 
-      <div class="shell__left">
-        <forge-palette></forge-palette>
-        <forge-layers></forge-layers>
+      <forge-rail class="shell__rail"></forge-rail>
+
+      <div class="shell__left" id="left-dock">
+        <forge-palette data-panel="elements"></forge-palette>
+        <forge-layers data-panel="layers" hidden></forge-layers>
       </div>
 
       <div class="shell__stage">
@@ -46,7 +52,7 @@
 
     <script type="module" src="./js/main.js"></script>
     <noscript>
-      <p style="padding: 24px; color: #d9dce3">
+      <p style="padding: 24px; color: #d7dae1">
         This editor needs JavaScript and WebAssembly enabled.
       </p>
     </noscript>

@@ -1,0 +1,16 @@
+# Keep shell scripts LF even on Windows checkouts — a CRLF shebang makes the
+# script unrunnable on Linux and macOS with a confusing "bad interpreter" error.
+*.sh text eol=lf
+serve.py text eol=lf
+
+# PowerShell is happiest with CRLF on Windows.
+*.ps1 text eol=crlf
+
+# Everything else: normalise to LF in the repository.
+* text=auto eol=lf
+
+# Never touch binaries.
+*.wasm binary
+*.png binary
+*.jpg binary
+*.ico binary

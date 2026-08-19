@@ -7,73 +7,73 @@
  * ------------------------------------------------------------------------- */
 
 :root {
-  /* Surfaces — layered darkest-to-lightest, VS Code style. */
-  --surface-void: #101114;
-  --surface-app: #17181c;
-  --surface-panel: #1b1d22;
-  --surface-raised: #212429;
+  /* -- surfaces, darkest to lightest ------------------------------------- */
+  --surface-rail: #131417;
+  --surface-chrome: #17181c;
+  --surface-panel: #1c1e22;
+  --surface-header: #212328;
+  --surface-raised: #262930;
   --surface-sunken: #141519;
-  --surface-input: #16171b;
-  --surface-hover: rgba(255, 255, 255, 0.045);
-  --surface-active: rgba(255, 255, 255, 0.08);
+  --surface-input: #15161a;
+  --surface-hover: rgba(255, 255, 255, 0.05);
+  --surface-active: rgba(255, 255, 255, 0.09);
 
-  /* Lines */
-  --line-soft: #24262c;
-  --line: #2b2e36;
-  --line-strong: #383c46;
+  /* -- lines -------------------------------------------------------------- */
+  --line-soft: #23252b;
+  --line: #2b2e35;
+  --line-strong: #3a3e47;
 
-  /* Ink */
-  --ink: #d9dce3;
-  --ink-strong: #f2f4f8;
-  --ink-dim: #8b909c;
-  --ink-faint: #61656f;
+  /* -- ink ---------------------------------------------------------------- */
+  --ink: #d7dae1;
+  --ink-strong: #f4f6fa;
+  --ink-dim: #8a8f9b;
+  --ink-faint: #5f646f;
 
-  /* Accents */
-  --accent: #4a8cff;
-  --accent-hover: #5f9bff;
-  --accent-press: #3b7aeb;
+  /* -- accents ------------------------------------------------------------ */
+  --accent: #4c8dff;
+  --accent-hover: #6099ff;
+  --accent-press: #3b7bea;
   --accent-ink: #ffffff;
-  --accent-wash: rgba(74, 140, 255, 0.14);
-  --accent-line: rgba(74, 140, 255, 0.45);
+  --accent-wash: rgba(76, 141, 255, 0.15);
+  --accent-line: rgba(76, 141, 255, 0.45);
 
-  --positive: #3fb950;
+  --positive: #46b95a;
   --warn: #d9a441;
-  --danger: #f26d63;
-  --danger-wash: rgba(242, 109, 99, 0.14);
+  --danger: #ef6b60;
+  --danger-wash: rgba(239, 107, 96, 0.14);
 
-  /* Canvas chrome */
-  --canvas-backdrop: #0d0e11;
-  --canvas-grid: rgba(255, 255, 255, 0.035);
-  --canvas-page-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
-  --marker-select: #4a8cff;
-  --marker-hover: rgba(74, 140, 255, 0.55);
-  --marker-drop: #3fb950;
+  /* -- canvas chrome ------------------------------------------------------ */
+  --canvas-backdrop: #25272d;
+  --canvas-grid: rgba(255, 255, 255, 0.028);
+  --canvas-page-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 16px 44px rgba(0, 0, 0, 0.45);
+  --marker-select: #4c8dff;
+  --marker-hover: rgba(76, 141, 255, 0.6);
+  --marker-drop: #46b95a;
   --marker-guide: #ff4d8d;
 
-  /* Type */
-  --font-ui: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  /* -- type --------------------------------------------------------------- */
+  --font-ui: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "Cascadia Mono", "JetBrains Mono", Consolas, "SF Mono", ui-monospace, monospace;
   --text-xs: 10.5px;
   --text-sm: 11.5px;
   --text-md: 12.5px;
   --text-lg: 13.5px;
 
-  /* Metrics */
-  --rail-left: 244px;
-  --rail-right: 272px;
-  --bar-top: 42px;
-  --bar-bottom: 24px;
+  /* -- metrics ------------------------------------------------------------ */
+  --rail-w: 46px;
+  --panel-left-w: 262px;
+  --panel-right-w: 284px;
+  --bar-top-h: 44px;
+  --bar-canvas-h: 38px;
+  --bar-bottom-h: 24px;
   --row-h: 26px;
   --control-h: 26px;
+
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 10px;
-  --gap-1: 4px;
-  --gap-2: 8px;
-  --gap-3: 12px;
-  --gap-4: 16px;
 
-  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--line);
+  --shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--line);
   --focus-ring: 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-wash);
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
 }

@@ -13,6 +13,7 @@
 /**
  * @typedef {object} Blueprint
  * @property {string} kind      identifier understood by the Rust engine
+ * @property {string} shortcut  single key that drops this element (must be unique)
  * @property {string} label     human name shown in the palette
  * @property {string} icon      key into {@link module:ui/icons.GLYPHS}
  * @property {string} hint      one-line tooltip
@@ -32,6 +33,7 @@ export const BLUEPRINT_GROUPS = Object.freeze([
     items: [
       {
         kind: 'section',
+        shortcut: 'S',
         label: 'Section',
         icon: 'section',
         hint: 'Full-width band for a page region',
@@ -39,6 +41,7 @@ export const BLUEPRINT_GROUPS = Object.freeze([
       },
       {
         kind: 'container',
+        shortcut: 'X',
         label: 'Box',
         icon: 'container',
         hint: 'Free-positioning card or panel',
@@ -46,6 +49,7 @@ export const BLUEPRINT_GROUPS = Object.freeze([
       },
       {
         kind: 'stack',
+        shortcut: 'K',
         label: 'Stack',
         icon: 'stack',
         hint: 'Flex row or column that flows its children',
@@ -53,6 +57,7 @@ export const BLUEPRINT_GROUPS = Object.freeze([
       },
       {
         kind: 'divider',
+        shortcut: 'D',
         label: 'Divider',
         icon: 'divider',
         hint: 'Horizontal rule',
@@ -65,6 +70,7 @@ export const BLUEPRINT_GROUPS = Object.freeze([
     items: [
       {
         kind: 'heading',
+        shortcut: 'H',
         label: 'Heading',
         icon: 'heading',
         hint: 'Display title',
@@ -72,6 +78,7 @@ export const BLUEPRINT_GROUPS = Object.freeze([
       },
       {
         kind: 'text',
+        shortcut: 'T',
         label: 'Text',
         icon: 'text',
         hint: 'Paragraph copy',
@@ -79,6 +86,7 @@ export const BLUEPRINT_GROUPS = Object.freeze([
       },
       {
         kind: 'image',
+        shortcut: 'I',
         label: 'Image',
         icon: 'image',
         hint: 'Picture from a URL or data URI',
@@ -91,6 +99,7 @@ export const BLUEPRINT_GROUPS = Object.freeze([
     items: [
       {
         kind: 'button',
+        shortcut: 'B',
         label: 'Button',
         icon: 'button',
         hint: 'Call-to-action button',
@@ -98,6 +107,7 @@ export const BLUEPRINT_GROUPS = Object.freeze([
       },
       {
         kind: 'link',
+        shortcut: 'L',
         label: 'Link',
         icon: 'link',
         hint: 'Anchor to another page',
@@ -105,6 +115,7 @@ export const BLUEPRINT_GROUPS = Object.freeze([
       },
       {
         kind: 'input',
+        shortcut: 'N',
         label: 'Input',
         icon: 'input',
         hint: 'Single-line text field',
@@ -127,11 +138,32 @@ export const BLUEPRINTS = Object.freeze(
 /** The root node never appears in the palette but still needs an icon. */
 const ROOT_BLUEPRINT = Object.freeze({
   kind: 'root',
+  shortcut: '',
   label: 'Page',
   icon: 'root',
   hint: 'The document body',
   container: true,
 });
+
+/**
+ * `shortcut letter -> kind`, built once so the keyboard map and the palette
+ * hints can never drift apart. A duplicate letter is a programming error and
+ * is reported rather than silently shadowing the earlier entry.
+ */
+export const SHORTCUT_TO_KIND = Object.freeze(
+  Object.values(BLUEPRINTS).reduce((map, item) => {
+    const key = (item.shortcut || '').toLowerCase();
+    if (!key) {
+      return map;
+    }
+    if (map[key]) {
+      console.error(`[elements] shortcut "${key}" is claimed by both ${map[key]} and ${item.kind}`);
+      return map;
+    }
+    map[key] = item.kind;
+    return map;
+  }, /** @type {Record<string, string>} */ ({}))
+);
 
 /**
  * @param {string} kind
@@ -152,5 +184,3 @@ export function blueprintFor(kind) {
   );
 }
 
-/** MIME-ish key used on `DataTransfer` when dragging a blueprint. */
-export const DRAG_MIME = 'application/x-forge-blueprint';

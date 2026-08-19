@@ -5,14 +5,24 @@
  * knowledge of specific elements. Exposing a new engine property in the UI is
  * one object literal appended to the right section.
  *
+ * Section contract
+ * ----------------
+ *   id       stable key used to remember the collapsed state
+ *   title    row label
+ *   icon     key into `ui/icons.js`
+ *   tab      `"visual"` (styling) or `"advanced"` (markup and raw CSS)
+ *   when     (node) => boolean — optional visibility predicate
+ *
  * Field contract
  * --------------
  *   key      dotted property path understood by `DesignerEngine.updateElement`
  *            (`"x"`, `"style.padding"`, `"custom.display"`, …)
- *   type     one of: number | text | textarea | color | select | toggle | segmented
+ *   type     number | text | textarea | color | select | toggle | segmented | slider
  *   read     (node) => string  — pulls the current value out of the node JSON
  *   when     (node) => boolean — optional visibility predicate
  *   live     true when dragging the control should skip the undo stack
+ *   span     1 = half width (default), 2 = full width
+ *   unit     short suffix rendered inside the control
  *
  * @module registry/inspector-schema
  */
@@ -41,68 +51,50 @@ const read = (path, fallback = '') => (node) => asText(at(node, path), fallback)
 /** Reader for colour inputs, which reject anything that is not `#rrggbb`. */
 const readColor = (path, fallback) => (node) => {
   const raw = at(node, path);
-  return typeof raw === 'string' && /^#[0-9a-f]{6}$/i.test(raw.trim())
-    ? raw.trim()
-    : fallback;
+  return typeof raw === 'string' && /^#[0-9a-f]{6}$/i.test(raw.trim()) ? raw.trim() : fallback;
 };
 
 const isText = (node) => ['heading', 'text', 'button', 'link'].includes(node.kind);
 const isContainer = (node) => ['root', 'container', 'section', 'stack'].includes(node.kind);
 const isBox = (node) => node.kind !== 'root';
 const isFlow = (node) => node.layout === 'row' || node.layout === 'column';
+const hasAttributes = (node) => ['link', 'image', 'input'].includes(node.kind);
 
-/**
- * @typedef {object} Field
- * @property {string} key
- * @property {string} label
- * @property {string} type
- * @property {(node: any) => string} read
- * @property {(node: any) => boolean} [when]
- * @property {boolean} [live]
- * @property {number} [min]
- * @property {number} [max]
- * @property {number} [step]
- * @property {string} [placeholder]
- * @property {Array<{value: string, label: string, icon?: string}>} [options]
- * @property {number} [span] 1 = half width (default), 2 = full width
- */
+/** The two inspector tabs, in order. */
+export const INSPECTOR_TABS = Object.freeze([
+  { id: 'visual', label: 'Visual' },
+  { id: 'advanced', label: 'Advanced' },
+]);
 
-/**
- * @typedef {object} Section
- * @property {string} id
- * @property {string} title
- * @property {string} icon
- * @property {(node: any) => boolean} [when]
- * @property {Field[]} fields
- */
-
-/** @type {ReadonlyArray<Section>} */
+/** @type {ReadonlyArray<any>} */
 export const INSPECTOR_SECTIONS = Object.freeze([
   {
-    id: 'identity',
-    title: 'Element',
-    icon: 'info',
-    fields: [
-      {
-        key: 'name',
-        label: 'Name',
-        type: 'text',
-        span: 2,
-        placeholder: 'Layer name',
-        read: read('name'),
-      },
-    ],
-  },
-  {
     id: 'geometry',
-    title: 'Position & size',
+    title: 'Size & position',
     icon: 'frame',
+    tab: 'visual',
     when: isBox,
     fields: [
-      { key: 'x', label: 'X', type: 'number', step: 1, read: read('x', '0'), when: (n) => !isFlow(n) },
-      { key: 'y', label: 'Y', type: 'number', step: 1, read: read('y', '0'), when: (n) => !isFlow(n) },
-      { key: 'width', label: 'W', type: 'number', step: 1, min: 4, read: read('width', '0') },
-      { key: 'height', label: 'H', type: 'number', step: 1, min: 4, read: read('height', '0') },
+      { key: 'width', label: 'W', type: 'number', step: 1, min: 4, unit: 'px', read: read('width', '0') },
+      { key: 'height', label: 'H', type: 'number', step: 1, min: 4, unit: 'px', read: read('height', '0') },
+      {
+        key: 'x',
+        label: 'X',
+        type: 'number',
+        step: 1,
+        unit: 'px',
+        read: read('x', '0'),
+        when: (node) => !isFlow(node),
+      },
+      {
+        key: 'y',
+        label: 'Y',
+        type: 'number',
+        step: 1,
+        unit: 'px',
+        read: read('y', '0'),
+        when: (node) => !isFlow(node),
+      },
       {
         key: 'autoHeight',
         label: 'Hug content vertically',
@@ -116,6 +108,7 @@ export const INSPECTOR_SECTIONS = Object.freeze([
     id: 'layout',
     title: 'Child layout',
     icon: 'grid',
+    tab: 'visual',
     when: isContainer,
     fields: [
       {
@@ -125,9 +118,9 @@ export const INSPECTOR_SECTIONS = Object.freeze([
         span: 2,
         read: read('layout', 'absolute'),
         options: [
-          { value: 'absolute', label: 'Free', icon: 'cursor' },
-          { value: 'row', label: 'Row', icon: 'stack' },
-          { value: 'column', label: 'Column', icon: 'layers' },
+          { value: 'absolute', label: 'Free' },
+          { value: 'row', label: 'Row' },
+          { value: 'column', label: 'Column' },
         ],
       },
       {
@@ -136,8 +129,9 @@ export const INSPECTOR_SECTIONS = Object.freeze([
         type: 'number',
         min: 0,
         step: 1,
+        unit: 'px',
         read: read('style.gap', ''),
-        when: (node) => node.layout === 'row' || node.layout === 'column',
+        when: isFlow,
       },
       {
         key: 'style.overflow',
@@ -157,6 +151,7 @@ export const INSPECTOR_SECTIONS = Object.freeze([
     id: 'content',
     title: 'Content',
     icon: 'text',
+    tab: 'visual',
     when: (node) => isText(node) || ['image', 'input'].includes(node.kind),
     fields: [
       {
@@ -169,24 +164,6 @@ export const INSPECTOR_SECTIONS = Object.freeze([
         when: isText,
       },
       {
-        key: 'href',
-        label: 'Link URL',
-        type: 'text',
-        span: 2,
-        placeholder: 'https://example.com',
-        read: read('href'),
-        when: (node) => node.kind === 'link',
-      },
-      {
-        key: 'src',
-        label: 'Image source',
-        type: 'textarea',
-        span: 2,
-        placeholder: 'https://… or a data: URI',
-        read: read('src'),
-        when: (node) => node.kind === 'image',
-      },
-      {
         key: 'content',
         label: 'Alt text',
         type: 'text',
@@ -194,14 +171,6 @@ export const INSPECTOR_SECTIONS = Object.freeze([
         placeholder: 'Describes the image',
         read: read('content'),
         when: (node) => node.kind === 'image',
-      },
-      {
-        key: 'placeholder',
-        label: 'Placeholder',
-        type: 'text',
-        span: 2,
-        read: read('placeholder'),
-        when: (node) => node.kind === 'input',
       },
       {
         key: 'content',
@@ -217,6 +186,7 @@ export const INSPECTOR_SECTIONS = Object.freeze([
     id: 'typography',
     title: 'Typography',
     icon: 'heading',
+    tab: 'visual',
     when: (node) => isText(node) || ['input', 'root'].includes(node.kind),
     fields: [
       {
@@ -225,6 +195,7 @@ export const INSPECTOR_SECTIONS = Object.freeze([
         type: 'number',
         min: 1,
         step: 1,
+        unit: 'px',
         read: read('style.font_size', ''),
       },
       {
@@ -252,9 +223,10 @@ export const INSPECTOR_SECTIONS = Object.freeze([
       },
       {
         key: 'style.letterSpacing',
-        label: 'Tracking',
+        label: 'Track',
         type: 'number',
         step: 0.1,
+        unit: 'px',
         read: read('style.letter_spacing', ''),
       },
       {
@@ -276,7 +248,7 @@ export const INSPECTOR_SECTIONS = Object.freeze([
         type: 'color',
         span: 2,
         live: true,
-        read: readColor('style.color', '#d9dce3'),
+        read: readColor('style.color', '#0f1729'),
       },
       {
         key: 'style.fontFamily',
@@ -289,9 +261,10 @@ export const INSPECTOR_SECTIONS = Object.freeze([
     ],
   },
   {
-    id: 'appearance',
-    title: 'Appearance',
-    icon: 'sliders',
+    id: 'fill',
+    title: 'Fill & border',
+    icon: 'droplet',
+    tab: 'visual',
     fields: [
       {
         key: 'style.background',
@@ -299,15 +272,7 @@ export const INSPECTOR_SECTIONS = Object.freeze([
         type: 'color',
         span: 2,
         live: true,
-        read: readColor('style.background', '#1b1d22'),
-      },
-      {
-        key: 'style.padding',
-        label: 'Padding',
-        type: 'number',
-        min: 0,
-        step: 1,
-        read: read('style.padding', ''),
+        read: readColor('style.background', '#ffffff'),
       },
       {
         key: 'style.radius',
@@ -315,6 +280,7 @@ export const INSPECTOR_SECTIONS = Object.freeze([
         type: 'number',
         min: 0,
         step: 1,
+        unit: 'px',
         read: read('style.radius', ''),
       },
       {
@@ -323,15 +289,43 @@ export const INSPECTOR_SECTIONS = Object.freeze([
         type: 'number',
         min: 0,
         step: 1,
+        unit: 'px',
         read: read('style.border_width', ''),
       },
       {
         key: 'style.borderColor',
         label: 'Stroke',
         type: 'color',
+        span: 2,
         live: true,
-        read: readColor('style.border_color', '#2b2e36'),
+        read: readColor('style.border_color', '#dfe4ec'),
       },
+    ],
+  },
+  {
+    id: 'spacing',
+    title: 'Spacing',
+    icon: 'spacing',
+    tab: 'visual',
+    fields: [
+      {
+        key: 'style.padding',
+        label: 'Padding',
+        type: 'number',
+        min: 0,
+        step: 1,
+        unit: 'px',
+        span: 2,
+        read: read('style.padding', ''),
+      },
+    ],
+  },
+  {
+    id: 'effects',
+    title: 'Effects',
+    icon: 'sparkle',
+    tab: 'visual',
+    fields: [
       {
         key: 'style.opacity',
         label: 'Opacity',
@@ -353,21 +347,82 @@ export const INSPECTOR_SECTIONS = Object.freeze([
       },
     ],
   },
+
+  /* ----------------------------------------------------------- advanced -- */
+  {
+    id: 'identity',
+    title: 'Layer',
+    icon: 'info',
+    tab: 'advanced',
+    fields: [
+      { key: 'name', label: 'Name', type: 'text', span: 2, placeholder: 'Layer name', read: read('name') },
+      {
+        key: 'hidden',
+        label: 'Hidden on the page',
+        type: 'toggle',
+        span: 2,
+        read: (node) => (node.hidden ? 'true' : 'false'),
+      },
+      {
+        key: 'locked',
+        label: 'Locked against editing',
+        type: 'toggle',
+        span: 2,
+        read: (node) => (node.locked ? 'true' : 'false'),
+      },
+    ],
+  },
+  {
+    id: 'attributes',
+    title: 'HTML attributes',
+    icon: 'html',
+    tab: 'advanced',
+    when: hasAttributes,
+    fields: [
+      {
+        key: 'href',
+        label: 'Link URL',
+        type: 'text',
+        span: 2,
+        placeholder: 'https://example.com',
+        read: read('href'),
+        when: (node) => node.kind === 'link',
+      },
+      {
+        key: 'src',
+        label: 'Image source',
+        type: 'textarea',
+        span: 2,
+        placeholder: 'https://… or a data: URI',
+        read: read('src'),
+        when: (node) => node.kind === 'image',
+      },
+      {
+        key: 'placeholder',
+        label: 'Placeholder',
+        type: 'text',
+        span: 2,
+        read: read('placeholder'),
+        when: (node) => node.kind === 'input',
+      },
+    ],
+  },
 ]);
 
 /**
  * Page-level fields, shown when nothing is selected.
- * @type {ReadonlyArray<Field>}
+ * @type {ReadonlyArray<any>}
  */
 export const PAGE_FIELDS = Object.freeze([
   { key: 'title', label: 'Title', type: 'text', span: 2, read: read('title') },
-  { key: 'width', label: 'Width', type: 'number', min: 240, step: 10, read: read('width') },
+  { key: 'width', label: 'Width', type: 'number', min: 240, step: 10, unit: 'px', read: read('width') },
   {
     key: 'minHeight',
     label: 'Min height',
     type: 'number',
     min: 240,
     step: 10,
+    unit: 'px',
     read: read('min_height'),
   },
   {
@@ -378,24 +433,23 @@ export const PAGE_FIELDS = Object.freeze([
     live: true,
     read: readColor('background', '#ffffff'),
   },
-  {
-    key: 'fontFamily',
-    label: 'Font stack',
-    type: 'text',
-    span: 2,
-    read: read('font_family'),
-  },
+  { key: 'fontFamily', label: 'Font stack', type: 'text', span: 2, read: read('font_family') },
 ]);
 
 /**
- * Filters the schema down to the sections and fields that apply to a node.
+ * Filters the schema down to the sections and fields that apply to a node
+ * within one tab.
  *
  * @param {any} node parsed node JSON from `DesignerEngine.getElement`
- * @returns {Array<{section: Section, fields: Field[]}>}
+ * @param {string} tab
+ * @returns {Array<{section: any, fields: any[]}>}
  */
-export function sectionsFor(node) {
+export function sectionsFor(node, tab) {
   const out = [];
   for (const section of INSPECTOR_SECTIONS) {
+    if (section.tab !== tab) {
+      continue;
+    }
     if (typeof section.when === 'function' && !section.when(node)) {
       continue;
     }

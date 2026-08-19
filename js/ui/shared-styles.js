@@ -11,8 +11,15 @@
 import { ICON_CSS } from './icons.js';
 
 export const SHARED_CSS = `
+/*
+ * Panel hosts fill their shell slot. Without an explicit height a custom
+ * element is an auto-height block, which silently collapses any panel whose
+ * inner layout is absolutely positioned.
+ */
 :host {
   display: block;
+  height: 100%;
+  min-height: 0;
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: var(--text-md);
@@ -38,40 +45,99 @@ ${ICON_CSS}
   border-radius: 999px;
 }
 
+/* ------------------------------------------------------------------- tabs */
+.tabs {
+  display: flex;
+  align-items: stretch;
+  height: 32px;
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-panel);
+}
+.tab {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-dim);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: color 90ms var(--ease), background 90ms var(--ease);
+}
+.tab:hover { color: var(--ink); background: var(--surface-hover); }
+.tab[aria-selected="true"] { color: var(--ink-strong); }
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+}
+
+/* ----------------------------------------------------------- panel header */
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  flex: 0 0 auto;
+  padding: 0 6px 0 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-header);
+  color: var(--ink-dim);
+}
+.panel-head__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------------------------------------------------------------- section */
+/*
+ * A collapsible property group. The chevron sits on the trailing edge, the
+ * way a properties inspector reads best: label first, state last.
+ */
 .section { border-bottom: 1px solid var(--line-soft); }
 .section:last-child { border-bottom: 0; }
 
 .section__head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   width: 100%;
-  height: 28px;
-  padding: 0 8px 0 6px;
+  height: 32px;
+  padding: 0 8px 0 10px;
   color: var(--ink-dim);
   user-select: none;
+  text-align: left;
 }
 .section__head:hover { background: var(--surface-hover); color: var(--ink); }
+.section[data-open="true"] .section__head { color: var(--ink); }
 
 .section__caret {
   display: grid;
   place-items: center;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
+  margin-left: auto;
   color: var(--ink-faint);
-  transition: transform 120ms var(--ease);
+  transition: transform 130ms var(--ease);
 }
 .section[data-open="false"] .section__caret { transform: rotate(-90deg); }
 
 .section__title {
-  flex: 1 1 auto;
   min-width: 0;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  text-align: left;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  letter-spacing: 0.01em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -83,7 +149,7 @@ ${ICON_CSS}
   font-variant-numeric: tabular-nums;
 }
 
-.section__body { padding: 4px 8px 12px; }
+.section__body { padding: 2px 10px 12px; }
 .section[data-open="false"] .section__body { display: none; }
 
 /* --------------------------------------------------------------- controls */
@@ -141,11 +207,25 @@ ${ICON_CSS}
 .field { display: grid; gap: 4px; min-width: 0; }
 .field--wide { grid-column: 1 / -1; }
 
+/*
+ * Numeric rows put the label beside the control rather than above it. An
+ * overlaid label inside the input only works for one- or two-character names;
+ * anything longer collides with the value.
+ */
+.field--row {
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
 .field__label {
   font-size: var(--text-xs);
   color: var(--ink-faint);
   letter-spacing: 0.02em;
   user-select: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .input,

@@ -14,6 +14,7 @@ import { installShortcuts } from './core/shortcuts.js';
 // Registering a component is a side effect of importing it; each module calls
 // `customElements.define` at the bottom. Adding a panel = one import here.
 import './ui/components/forge-toolbar.js';
+import './ui/components/forge-rail.js';
 import './ui/components/forge-palette.js';
 import './ui/components/forge-layers.js';
 import './ui/components/forge-canvas.js';
@@ -77,6 +78,11 @@ async function start() {
     installShortcuts();
     revealShell();
     app.setStatus('Engine ready', 'info');
+
+    // Documented debug handle. Open the console and poke at `__forge.engine`,
+    // `__forge.state`, or `__forge.getTree()`. The browser test runner drives
+    // the real editor through this rather than through a copy of it.
+    window.__forge = app;
   } catch (error) {
     failBoot(error);
   }

@@ -28,11 +28,27 @@ Before opening a PR:
 ```bash
 cargo fmt
 cargo clippy --target wasm32-unknown-unknown -- -D warnings
-cargo test
+cargo test                          # engine logic
 wasm-pack build --target web        # must succeed
+node tests/run-browser-tests.mjs    # real Chrome, real input events
 ```
 
-There is no JS toolchain to run. Load the page and exercise the change.
+There is no JS toolchain to install — the browser runner is plain Node with
+zero dependencies.
+
+### Two rules that exist because breaking them cost real debugging time
+
+**1. A panel host must have a height.** Every shell slot in `css/shell.css` is
+a grid container and `SHARED_CSS` sets `:host { height: 100% }`. If you add a
+panel and lay its slot out as a plain block, `:host` collapses to zero height,
+its absolutely-positioned contents still paint, and you get a panel you can see
+but cannot click. Nothing throws; the editor just stops responding to the
+mouse.
+
+**2. Do not reach for the HTML5 Drag and Drop API.** Use
+`core/drag-controller.js`. Native DnD misbehaves across shadow boundaries and
+on form controls, and — decisively — it cannot be driven from a test, because a
+native drag cannot be started by script.
 
 ---
 

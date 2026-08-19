@@ -14,6 +14,44 @@ install`. The only build step in the whole project compiles the Rust crate.
 
 ---
 
+## Quick start
+
+One command. It checks the toolchain, installs whatever is missing, builds the
+engine and serves the editor.
+
+**Linux / macOS**
+
+```bash
+./setup.sh --serve
+```
+
+**Windows (PowerShell)**
+
+```powershell
+.\setup.ps1 -Serve
+```
+
+Then open <http://127.0.0.1:8080/>.
+
+The scripts are safe to re-run — each step checks first and skips what is
+already installed. They prompt before installing anything; pass `--yes` / `-Yes`
+in CI. Useful flags:
+
+| Flag | Effect |
+| --- | --- |
+| `--serve` / `-Serve` | serve when the build finishes |
+| `--port 3000` / `-Port 3000` | pick the port |
+| `--dev` / `-Dev` | fast unoptimised build |
+| `--test` / `-Test` | run the Rust and browser test suites |
+| `--yes` / `-Yes` | never prompt |
+| `--help` / `-?` | usage |
+
+Prefer to drive it yourself? See [§2 Build and run](#2-build-and-run). Either
+way: re-run the build after changing anything in `src/`; changes under `js/`,
+`css/` or `index.html` need only a browser refresh.
+
+---
+
 ## 1. Requirements
 
 | Tool | Why | Check |
@@ -45,6 +83,9 @@ not `file://`.
 ---
 
 ## 2. Build and run
+
+Everything below is what `setup.sh` / `setup.ps1` do for you. Run it by hand
+when you want control over the individual steps.
 
 From the project root:
 
@@ -81,7 +122,9 @@ imports directly, with no bundler in the loop. The UI never imports from
 
 | Action | How |
 | --- | --- |
-| Add an element | Drag a tile from the left rail onto the canvas, or double-click the tile |
+| Add an element | Drag a tile from the left panel onto the canvas, double-click the tile, or press its letter (`S` `X` `K` `D` `H` `T` `I` `B` `L` `N`) |
+| Switch left panel | The icon rail — Elements or Layers |
+| Change canvas width | The device buttons in the canvas toolbar, or type a width |
 | Select | Click it on the canvas, or click its row in **Layers** |
 | Move | Drag it. `Shift` constrains to one axis, `Ctrl`/`⌘` disables snapping |
 | Duplicate while dragging | Hold `Alt` and start the drag |
@@ -106,9 +149,13 @@ imports directly, with no bundler in the loop. The UI never imports from
 | `Ctrl+[` / `Ctrl+]` | Send backward / bring forward |
 | `Ctrl+P` | Toggle preview |
 | `Ctrl+0`, `Ctrl+±`, `Ctrl+scroll` | Zoom |
-| `Escape` | Deselect |
+| `Escape` | Deselect, or cancel a drag |
+| `S X K D H T I B L N` | Add section / box / stack / divider / heading / text / image / button / link / input |
 
 Bindings live in one table in [`js/core/shortcuts.js`](js/core/shortcuts.js).
+The single-letter element keys are generated from
+[`js/registry/elements.js`](js/registry/elements.js), so a tile's hint and its
+key can never disagree.
 
 ---
 
@@ -117,6 +164,7 @@ Bindings live in one table in [`js/core/shortcuts.js`](js/core/shortcuts.js).
 ```
 project/
 ├── Cargo.toml                    crate manifest (3 Rust deps, 0 JS deps)
+├── setup.sh / setup.ps1          cross-platform install + build + serve
 ├── serve.py                      static server with correct WASM MIME types
 ├── index.html                    the shell; every panel is a custom element
 │
@@ -148,9 +196,43 @@ project/
 │   │   └── components/           toolbar, palette, layers, canvas, inspector, status
 │   └── util/files.js             download / open, on Blob and <input type=file>
 │
+├── tests/
+│   ├── run-browser-tests.mjs     zero-dependency CDP runner (Node 22+)
+│   └── smoke.html                engine ↔ preview-frame contract
+│
 ├── docs/ARCHITECTURE.md          how the two halves fit together
 └── CONTRIBUTING.md               how to add an element, a property, a panel
 ```
+
+---
+
+## 4a. Tests
+
+```bash
+cargo test                        # engine logic, no browser needed
+node tests/run-browser-tests.mjs  # real Chrome, real input events
+node tests/run-browser-tests.mjs --headful   # watch it drive the editor
+```
+
+The browser runner starts `serve.py`, launches Chrome/Chromium/Edge with the
+DevTools protocol, and asserts against the live editor. It drives the canvas
+with genuine `Input.dispatchMouseEvent` events, so "does dragging work" is a
+question the suite can actually answer — synthetic `dispatchEvent` calls are
+untrusted and prove nothing.
+
+Set `CHROME_PATH` if your browser is somewhere unusual.
+
+Two traps the runner exists to avoid, both of which produce convincing false
+failures:
+
+* `chrome --dump-dom` snapshots at the load event, long before WebAssembly has
+  instantiated;
+* `--virtual-time-budget` fixes that but then stops loading new frames once the
+  clock jumps, so anything created after an async fetch never runs.
+
+It also calls `Page.bringToFront` on every tab, because Chrome does not run
+`requestAnimationFrame` in a background tab and the preview frame's measurement
+loop is rAF-driven.
 
 ---
 
@@ -191,6 +273,12 @@ ES modules and WebAssembly cannot load from the filesystem. Serve over HTTP.
 
 **`wasm-pack: command not found`**
 `cargo install wasm-pack`, then make sure `~/.cargo/bin` is on your `PATH`.
+
+**`wasm-validator error … Bulk memory operations require bulk memory`**
+Rust 1.82+ emits instructions the bundled `wasm-opt` validates with off by
+default. `Cargo.toml` already passes the matching `--enable-*` flags under
+`[package.metadata.wasm-pack.profile.release]`; if a future `wasm-opt` rejects
+one of them, drop that flag or set `wasm-opt = false` there.
 
 **Changes to `src/` do nothing**
 `wasm-pack build` must be re-run; the browser only ever sees the compiled

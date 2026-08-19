@@ -3,6 +3,12 @@
  *
  * Only the outer frame lives here. Every panel is a Web Component that carries
  * its own Shadow DOM styles, so this file stays intentionally short.
+ *
+ * One rule matters more than the rest: **every shell slot is a grid container
+ * and every panel host is a stretched grid item.** A custom element defaults
+ * to `display: block` with auto height; dropping one into a plain block
+ * container collapses it to zero height while its absolutely-positioned
+ * innards still paint, producing a panel you can see but cannot click.
  * ------------------------------------------------------------------------- */
 
 *,
@@ -19,7 +25,7 @@ body {
 }
 
 body {
-  background: var(--surface-app);
+  background: var(--surface-chrome);
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: var(--text-md);
@@ -33,7 +39,6 @@ body {
   color: var(--ink-strong);
 }
 
-/* Thin, unobtrusive scrollbars everywhere in the editor chrome. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
@@ -56,7 +61,7 @@ body {
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #4a4f5c;
+  background: #4b505c;
   background-clip: content-box;
 }
 
@@ -64,12 +69,16 @@ body {
 
 .shell {
   display: grid;
-  grid-template-columns: var(--rail-left) minmax(0, 1fr) var(--rail-right);
-  grid-template-rows: var(--bar-top) minmax(0, 1fr) var(--bar-bottom);
+  grid-template-columns:
+    var(--rail-w)
+    var(--panel-left-w)
+    minmax(0, 1fr)
+    var(--panel-right-w);
+  grid-template-rows: var(--bar-top-h) minmax(0, 1fr) var(--bar-bottom-h);
   grid-template-areas:
-    "topbar topbar topbar"
-    "left   stage  right"
-    "status status status";
+    "topbar topbar topbar topbar"
+    "rail   left   stage  right"
+    "status status status status";
   height: 100vh;
   width: 100vw;
 }
@@ -80,46 +89,77 @@ body {
 }
 
 .shell[data-mode="preview"] {
-  grid-template-columns: 0 minmax(0, 1fr) 0;
+  grid-template-columns: 0 0 minmax(0, 1fr) 0;
 }
 
+.shell[data-mode="preview"] .shell__rail,
 .shell[data-mode="preview"] .shell__left,
 .shell[data-mode="preview"] .shell__right {
   display: none;
 }
 
+/*
+ * Each slot is a single-cell grid: children stretch to fill it in both axes,
+ * which is what gives every panel host a real height.
+ */
+.shell__topbar,
+.shell__rail,
+.shell__left,
+.shell__stage,
+.shell__right,
+.shell__status {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .shell__topbar {
   grid-area: topbar;
-  min-width: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-chrome);
+}
+
+.shell__rail {
+  grid-area: rail;
+  border-right: 1px solid var(--line);
+  background: var(--surface-rail);
 }
 
 .shell__left {
   grid-area: left;
-  min-width: 0;
-  display: grid;
-  grid-template-rows: minmax(140px, auto) minmax(0, 1fr);
   border-right: 1px solid var(--line);
   background: var(--surface-panel);
 }
 
 .shell__stage {
   grid-area: stage;
-  min-width: 0;
   position: relative;
   background: var(--canvas-backdrop);
 }
 
 .shell__right {
   grid-area: right;
-  min-width: 0;
   border-left: 1px solid var(--line);
   background: var(--surface-panel);
-  overflow: hidden;
 }
 
 .shell__status {
   grid-area: status;
-  min-width: 0;
+  border-top: 1px solid var(--line);
+  background: var(--surface-chrome);
+}
+
+/* Panels swapped by the icon rail share the left slot. */
+.shell__left > * {
+  grid-area: 1 / 1;
+  min-height: 0;
+}
+
+.shell__left > [hidden] {
+  display: none;
 }
 
 /* ------------------------------------------------------------- boot screen */
@@ -130,8 +170,7 @@ body {
   z-index: 40;
   display: grid;
   place-items: center;
-  gap: var(--gap-3);
-  background: var(--surface-app);
+  background: var(--surface-chrome);
   transition: opacity 220ms var(--ease);
 }
 
@@ -147,9 +186,9 @@ body {
 .boot__inner {
   display: grid;
   justify-items: center;
-  gap: var(--gap-3);
-  max-width: 460px;
-  padding: 0 var(--gap-4);
+  gap: 12px;
+  max-width: 480px;
+  padding: 0 16px;
   text-align: center;
 }
 
@@ -158,7 +197,7 @@ body {
   height: 34px;
   border-radius: 9px;
   background: linear-gradient(150deg, var(--accent), #8a5cff);
-  box-shadow: 0 8px 24px rgba(74, 140, 255, 0.28);
+  box-shadow: 0 8px 24px rgba(76, 141, 255, 0.28);
 }
 
 .boot__title {
@@ -177,7 +216,9 @@ body {
 .boot__error {
   display: none;
   width: 100%;
-  padding: var(--gap-3);
+  max-height: 50vh;
+  overflow: auto;
+  padding: 12px;
   border: 1px solid var(--danger);
   border-radius: var(--radius-md);
   background: var(--danger-wash);
@@ -227,6 +268,44 @@ body {
   100% {
     transform: translateX(250%);
   }
+}
+
+/* ------------------------------------------------------- drag ghost layer */
+
+/*
+ * Dragging is pointer-based, not HTML5 drag-and-drop, so the "ghost" that
+ * follows the cursor is a real element in the top-level document. It must sit
+ * above everything and never intercept a hit test.
+ */
+.drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 11px 0 9px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  color: var(--ink-strong);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+  transform: translate3d(-9999px, -9999px, 0);
+  will-change: transform;
+}
+
+.drag-ghost svg {
+  color: var(--accent);
+}
+
+body[data-dragging="true"] {
+  cursor: grabbing;
 }
 
 @media (prefers-reduced-motion: reduce) {
