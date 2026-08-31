@@ -1,10 +1,15 @@
 /**
  * A computer-science graduate's developer portfolio.
  *
- * The default document, and the one a first-time visitor lands on. It shows
- * every element the palette offers at least once — two reference tables, a
- * highlighted code block, a list, a quote, a real contact form — so clicking
- * through it doubles as a tour of what the tool can do.
+ * The default document, and the one a first-time visitor lands on. Between
+ * them the templates use every element in the palette except Video, so
+ * clicking through this one is most of a tour of what the tool can do: two
+ * reference tables, a highlighted code block, a list, a quote, an image, and a
+ * contact form that really submits.
+ *
+ * Nothing here needs anything the editor cannot do. `tests/unit/templates.test.js`
+ * checks that: every property these files set is one the inspector exposes, so
+ * the page can be rebuilt, or taken apart, by hand.
  *
  * Skills are listed, not scored. A percentage next to "React — 87%" is a
  * number nobody can source and nobody believes, and it is the first thing a
@@ -30,7 +35,7 @@ export function build() {
       description:
         'Full-stack developer with a computer science background. React and Next.js on Node and NestJS, with the fundamentals underneath — data structures, databases, networks and system design.',
       width: 1280,
-      minHeight: 3100,
+      minHeight: 3180,
       background: T.surface,
       fontFamily: "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif",
     },
@@ -56,7 +61,7 @@ export function build() {
       ),
 
       /* ============================================================= hero === */
-      band('hero', { y: 77, height: 520, name: 'Hero' }),
+      band('hero', { y: 77, height: 600, name: 'Hero' }),
       // One column stack holds the whole left-hand side, so the buttons sit
       // under the copy however long the headline wraps. Nothing here needs a
       // hand-computed `y`.
@@ -64,6 +69,23 @@ export function build() {
         'stack',
         { name: 'Hero column', width: 540, layout: 'column', gap: 30, padding: 0 },
         { ref: 'hero-col', parent: 'hero', x: GUTTER, y: 92 }
+      ),
+      // Uses the built-in placeholder, so the template pulls in no asset and
+      // makes no network request. Drop a real photo on it, or use Upload in
+      // the inspector.
+      el(
+        'image',
+        {
+          name: 'Avatar',
+          width: 68,
+          height: 68,
+          content: 'A photo of Mayur',
+          radius: 34,
+          objectFit: 'cover',
+          borderWidth: 1,
+          borderColor: T.line,
+        },
+        { parent: 'hero-col' }
       ),
       // A greeting, then the headline. Its own element rather than the heading
       // block's eyebrow: an eyebrow is small uppercase label text, and a
@@ -175,7 +197,7 @@ export function build() {
 
       /* =========================================================== skills === */
       band('skills', {
-        y: 597,
+        y: 677,
         height: 740,
         background: T.wash,
         anchor: 'skills',
@@ -221,7 +243,7 @@ export function build() {
       ),
 
       /* ============================================================= work === */
-      band('work', { y: 1337, height: 580, anchor: 'work', name: 'Work' }),
+      band('work', { y: 1417, height: 580, anchor: 'work', name: 'Work' }),
       ...heading({
         ref: 'work-head',
         parent: 'work',
@@ -263,7 +285,7 @@ export function build() {
       ),
 
       /* ============================================================ about === */
-      band('about', { y: 1917, height: 400, background: T.wash, anchor: 'about', name: 'About' }),
+      band('about', { y: 1997, height: 400, background: T.wash, anchor: 'about', name: 'About' }),
       ...heading({
         ref: 'about-head',
         parent: 'about',
@@ -308,7 +330,7 @@ export function build() {
       ),
 
       /* ========================================================== contact === */
-      band('contact', { y: 2317, height: 640, anchor: 'contact', name: 'Contact' }),
+      band('contact', { y: 2397, height: 640, anchor: 'contact', name: 'Contact' }),
       ...heading({
         ref: 'contact-head',
         parent: 'contact',
@@ -407,7 +429,7 @@ export function build() {
 
       /* =========================================================== footer === */
       ...footer({
-        y: 2957,
+        y: 3037,
         gutter: GUTTER,
         width: COLUMN,
         note: 'Built with devlove. Everything on this page is editable — start anywhere.',

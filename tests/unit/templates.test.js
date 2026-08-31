@@ -23,6 +23,9 @@ import {
   templateById,
 } from '../../js/templates/index.js';
 import { props } from '../../js/templates/parts.js';
+import { BLUEPRINTS } from '../../js/registry/elements.js';
+import { INSPECTOR_SECTIONS, PAGE_FIELDS } from '../../js/registry/inspector-schema.js';
+import { PLACEABLE_KINDS } from '../../js/engine/kinds.js';
 
 /**
  * Replays a template through the engine.
@@ -157,5 +160,82 @@ describe('the props helper', () => {
       'data.rows': 'a | b',
       'custom.filter': 'blur(2px)',
     });
+  });
+});
+
+describe('templates stay buildable by hand', () => {
+  // A template that used a property the inspector never shows would be
+  // advertising a page nobody can actually make. These keep the claim honest.
+
+  /** Every `key` the inspector renders a control for. */
+  const inspectorKeys = new Set([
+    ...PAGE_FIELDS.map((field) => field.key),
+    ...INSPECTOR_SECTIONS.flatMap((section) => section.fields.map((field) => field.key)),
+  ]);
+
+  it('sets no property the inspector does not expose', () => {
+    /** @type {string[]} */
+    const unreachable = [];
+
+    for (const template of TEMPLATES) {
+      const { page, nodes } = template.build();
+      const keys = [
+        ...Object.keys(page || {}),
+        ...nodes.flatMap((node) => Object.keys(node.props || {})),
+      ];
+      for (const key of keys) {
+        // `custom.*` is the Custom CSS field, which takes anything.
+        if (inspectorKeys.has(key) || key.startsWith('custom.')) {
+          continue;
+        }
+        unreachable.push(`${template.id}: ${key}`);
+      }
+    }
+
+    assert.deepEqual(
+      [...new Set(unreachable)],
+      [],
+      'a template sets something no inspector field can set'
+    );
+  });
+
+  it('uses no element without a palette tile', () => {
+    for (const template of TEMPLATES) {
+      for (const node of template.build().nodes) {
+        assert.ok(
+          BLUEPRINTS[node.kind],
+          `${template.id} uses "${node.kind}", which has no palette tile`
+        );
+      }
+    }
+  });
+
+  it('between them, shows off all but one of the elements', () => {
+    const used = new Set(
+      TEMPLATES.flatMap((template) => template.build().nodes.map((node) => node.kind))
+    );
+    const unused = PLACEABLE_KINDS.filter((kind) => !used.has(kind));
+    // Video is the exception: it has nothing to play without an asset, and a
+    // template that shipped a video file would not be a template any more.
+    assert.deepEqual(unused, ['video']);
+  });
+});
+
+describe('exports are self-contained', () => {
+  for (const template of TEMPLATES) {
+    it(`${template.id} needs nothing from the network`, () => {
+      const html = compileDocument(apply(template.build()).snapshot(), { editor: false });
+
+      // One file, or it is not really an export. No stylesheet links, no
+      // script sources, no font or image hosts to go down on someone else.
+      assert.ok(!/<link\b/i.test(html), 'links to an external stylesheet');
+      assert.ok(!/<script[^>]+\bsrc=/i.test(html), 'loads a script from elsewhere');
+      assert.ok(!/\b(?:src|href)="https?:\/\//i.test(html), 'fetches a remote asset');
+    });
+  }
+
+  it('carries no script at all when nothing on the page clicks', () => {
+    const html = compileDocument(apply(buildTemplate('blank')).snapshot(), { editor: false });
+    assert.ok(!html.includes('<script'));
   });
 });

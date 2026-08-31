@@ -458,7 +458,29 @@ change.
 
 ---
 
-## 5. Known limits
+## 5. The templates use nothing you cannot
+
+A builder whose own examples need a back door is not a builder. The templates
+in `js/templates/` go through the same `addElementWith` the editor does, and
+`tests/unit/templates.test.js` asserts the part that could quietly stop being
+true:
+
+- **every property they set has an inspector field** — or is a `custom.*`
+  declaration, which is the Custom CSS box;
+- **every element they use has a palette tile**;
+- **between them they use every element but Video**, which has nothing to play
+  without an asset;
+- **every export is one file** — no `<link>`, no `<script src>`, no remote
+  images or fonts. 14–20KB each.
+
+So a template can be taken apart, rebuilt or replaced by hand. It is also the
+check that stops the palette and the inspector drifting behind the engine:
+adding a style property that no field exposes will pass every other test in
+the suite and fail this one the moment a template uses it.
+
+---
+
+## 6. Known limits
 
 Worth knowing before you build on this:
 

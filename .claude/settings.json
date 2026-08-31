@@ -31,7 +31,11 @@
       "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/saas-logos.py\")",
       "Bash(node shot.mjs saas2b.png http://127.0.0.1:8080/ --template=saas --preview)",
       "Bash(node shot.mjs hero.png http://127.0.0.1:8080/ --preview)",
-      "Bash(node flickertest.mjs)"
+      "Bash(node flickertest.mjs)",
+      "Bash(cp \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/audit.mjs\" ./_audit.mjs)",
+      "Bash(node _audit.mjs)",
+      "Bash(node -e ' *)",
+      "Bash(node shot.mjs final-hero.png http://127.0.0.1:8080/ --preview)"
     ]
   }
 }
