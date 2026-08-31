@@ -35,7 +35,23 @@
       "Bash(cp \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/audit.mjs\" ./_audit.mjs)",
       "Bash(node _audit.mjs)",
       "Bash(node -e ' *)",
-      "Bash(node shot.mjs final-hero.png http://127.0.0.1:8080/ --preview)"
+      "Bash(node shot.mjs final-hero.png http://127.0.0.1:8080/ --preview)",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/engine-ux.py\")",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/engine-index-ux.py\")",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/app-ux.py\")",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/align-ui.py\")",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/portfolio-copy.py\")",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/portfolio-exp.py\")",
+      "Bash(ls \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Personal-project/\" 2>/dev/null; ls \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/\" | head -40)",
+      "Read(//c/Users/COMP-3/AppData/Local/Temp/claude/**)",
+      "Bash(sed -i \"s|\\\\`\\\\${process.env\\\\['LOCALAPPDATA'\\\\]}\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\Google\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\Chrome\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\Application\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\chrome.exe\\\\`,|\\\\`\\\\${process.env['LOCALAPPDATA']}\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\Google\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\Chrome\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\Application\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\chrome.exe\\\\`,\\\\n  \\\\`\\\\${process.env['ProgramFiles\\(x86\\)']}\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\Microsoft\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\Edge\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\Application\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\msedge.exe\\\\`,\\\\n  \\\\`\\\\${process.env['ProgramFiles']}\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\Microsoft\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\Edge\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\Application\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\msedge.exe\\\\`,|\" pageshot.mjs)",
+      "Bash(node pageshot.mjs portfolio.html portfolio-full.png 1280 0.5)",
+      "PowerShell(@\\(\"$env:ProgramFiles\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\",\"${env:ProgramFiles\\(x86\\)}\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\",\"$env:LOCALAPPDATA\\\\Google\\\\Chrome\\\\Application\\\\chrome.exe\",\"${env:ProgramFiles\\(x86\\)}\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\",\"$env:ProgramFiles\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe\"\\) | Where-Object { Test-Path $_ })",
+      "Bash(CHROME_PATH=\"C:\\\\\\\\Program Files\\\\\\\\Google\\\\\\\\Chrome\\\\\\\\Application\\\\\\\\chrome.exe\" node pageshot.mjs portfolio.html portfolio-full.png 1280 0.5)",
+      "Bash(CHROME_PATH=\"C:\\\\\\\\Program Files\\\\\\\\Google\\\\\\\\Chrome\\\\\\\\Application\\\\\\\\chrome.exe\" node pageshot.mjs portfolio.html portfolio-v2.png 1280 0.55)",
+      "Bash(CHROME_PATH=\"C:\\\\\\\\Program Files\\\\\\\\Google\\\\\\\\Chrome\\\\\\\\Application\\\\\\\\chrome.exe\" node tests/run-browser-tests.mjs)",
+      "Bash(CHROME_PATH=\"C:\\\\\\\\Program Files\\\\\\\\Google\\\\\\\\Chrome\\\\\\\\Application\\\\\\\\chrome.exe\" node shot.mjs help.png http://127.0.0.1:8080/ --probe=open-help.js)",
+      "Bash(CHROME_PATH=\"C:\\\\\\\\Program Files\\\\\\\\Google\\\\\\\\Chrome\\\\\\\\Application\\\\\\\\chrome.exe\" node shot.mjs final-portfolio.png \"http://127.0.0.1:8080/\" --preview --scroll=2100)"
     ]
   }
 }

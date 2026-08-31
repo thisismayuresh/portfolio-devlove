@@ -404,14 +404,23 @@ The shell is: top bar, icon rail, left dock (Elements or Layers), stage, right
 inspector, status bar. `dl-rail` owns which dock panel is visible by
 toggling `hidden` on elements tagged with `data-panel` in `index.html`.
 
-Three panels are pure renderers over data files:
+Four panels are pure renderers over data files:
 
 - `dl-palette` renders `registry/elements.js`;
 - `dl-inspector` renders `registry/inspector-schema.js`;
+- `dl-help` renders the `BINDINGS` table _and_ the element registry, so a
+  shortcut cannot exist without being documented;
 - `core/shortcuts.js` generates its single-letter element keys from the same
   element registry, so a palette hint and its key cannot drift apart.
 
 None contains a branch on element type. That is the extension point.
+
+The inspector has one hand-written section, `_renderAlignSection`, and the
+reason is worth stating: the schema describes values a node _has_, and "align
+these three to their left edges" is not one of those. Actions on a _set_ of
+nodes have no property to hang off, so they are written out. If a second such
+group ever appears, that is the moment to give actions their own table rather
+than to add a third.
 
 ---
 

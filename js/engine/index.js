@@ -21,11 +21,16 @@
 
 import {
   addNode,
+  alignNodes,
   buildTree,
   clearDocument,
   createDocument,
   deleteNode,
+  distributeNodes,
   duplicateNode,
+  extractSubtrees,
+  groupNodes,
+  insertSubtrees,
   moveNode,
   nodeAt,
   normalizeDocument,
@@ -34,6 +39,7 @@ import {
   requireNode,
   resizeNode,
   setPageProp,
+  ungroupNode,
 } from './document.js';
 import { declarationsFor } from './compiler.js';
 import { dropTarget, hitTest, snapGuides, toLocalPoint } from './geometry.js';
@@ -304,6 +310,90 @@ export class Engine {
   /** @returns {boolean} */
   canRedo() {
     return this.history.canRedo;
+  }
+
+  // ========================================================== clipboard ===
+
+  /**
+   * Lifts the given subtrees out as a portable payload.
+   *
+   * Reads only — copying nothing is a legitimate outcome and must not disturb
+   * the document or the undo stack.
+   *
+   * @param {string[]} ids
+   * @returns {{roots: string[], nodes: Record<string, any>}}
+   */
+  copyElements(ids) {
+    return extractSubtrees(this.doc, ids);
+  }
+
+  /**
+   * Pastes a payload into a container, with fresh ids, as one undo step.
+   *
+   * @param {{roots: string[], nodes: Record<string, any>}} payload
+   * @param {string | null} [parentId] defaults to the root
+   * @returns {string[]} the ids of the pasted roots
+   */
+  pasteElements(payload, parentId = null) {
+    return this._guard(() => {
+      const roots = insertSubtrees(this.doc, payload, parentId || this.doc.root);
+      if (roots.length > 0) {
+        this._selection = roots;
+      }
+      return roots;
+    });
+  }
+
+  // ========================================================== arrangement ===
+
+  /**
+   * Wraps several siblings in a new container.
+   *
+   * @param {string[]} ids
+   * @returns {string} the container's id
+   */
+  groupElements(ids) {
+    return this._guard(() => {
+      const groupId = groupNodes(this.doc, ids);
+      this._selection = [groupId];
+      return groupId;
+    });
+  }
+
+  /**
+   * Dissolves containers, leaving their children in place.
+   *
+   * @param {string[]} ids
+   * @returns {string[]} everything that was lifted out
+   */
+  ungroupElements(ids) {
+    return this._guard(() => {
+      const freed = ids
+        .filter((id) => nodeAt(this.doc, id))
+        .flatMap((id) => ungroupNode(this.doc, id));
+      this._selection = freed;
+      return freed;
+    });
+  }
+
+  /**
+   * Lines several elements up along one edge, as one undo step.
+   *
+   * @param {string[]} ids
+   * @param {'left'|'centre'|'right'|'top'|'middle'|'bottom'} edge
+   */
+  alignElements(ids, edge) {
+    this._guard(() => alignNodes(this.doc, ids, edge));
+  }
+
+  /**
+   * Spreads several elements so the gaps between them are equal.
+   *
+   * @param {string[]} ids
+   * @param {'horizontal'|'vertical'} axis
+   */
+  distributeElements(ids, axis) {
+    this._guard(() => distributeNodes(this.doc, ids, axis));
   }
 
   // =========================================================== selection ===

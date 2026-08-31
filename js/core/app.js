@@ -79,6 +79,12 @@ export class DevloveApp extends Emitter {
       frameReady: false,
     };
 
+    /**
+     * The in-app clipboard: a payload from `Engine.copyElements`, or `null`.
+     * @type {{roots: string[], nodes: Record<string, any>} | null}
+     */
+    this._clipboard = null;
+
     this._recompileHandle = 0;
     this._autosaveHandle = 0;
     this._pendingPatches = new Set();
@@ -214,6 +220,177 @@ export class DevloveApp extends Emitter {
     if (removed) {
       this.setStatus(removed === 1 ? 'Deleted element' : `Deleted ${removed} elements`);
     }
+  }
+
+  // =========================================================== clipboard ===
+
+  /**
+   * Copies the selection.
+   *
+   * The clipboard lives in this module, not in the system one. Writing a
+   * document fragment to the OS clipboard means either stringifying it as text
+   * — which turns "paste" into a race with whatever else the user has copied —
+   * or asking for a permission most people decline. In-app copy/paste works
+   * every time, and the cost is that it does not cross tabs. Save the project
+   * for that.
+   *
+   * @returns {number} how many top-level elements went on the clipboard
+   */
+  copySelection() {
+    const ids = this._topLevelSelection();
+    if (ids.length === 0) {
+      return 0;
+    }
+    this._clipboard = this._safe('copy', () => this.engine.copyElements(ids), null);
+    const count = this._clipboard ? this._clipboard.roots.length : 0;
+    if (count > 0) {
+      this.setStatus(count === 1 ? 'Copied' : `Copied ${count} elements`, 'muted');
+    }
+    return count;
+  }
+
+  /** Copies the selection and deletes it, as one undo step. */
+  cutSelection() {
+    if (this.copySelection() > 0) {
+      this.removeSelection();
+      this.setStatus('Cut');
+    }
+  }
+
+  /**
+   * Pastes the clipboard into the selected container, or beside the selection.
+   *
+   * Pasting into whatever is selected is what makes paste useful — copy a card
+   * and paste it into three different sections without dragging anything.
+   */
+  pasteClipboard() {
+    if (!this._clipboard || this._clipboard.roots.length === 0) {
+      this.setStatus('Nothing to paste', 'muted');
+      return;
+    }
+    // `resolveContainer` in the engine turns "the selected paragraph" into
+    // "the container the paragraph is in", so this is always somewhere a node
+    // can actually live.
+    const target = this.state.selection || 'root';
+    const pasted = this._safe(
+      'paste',
+      () => this.engine.pasteElements(this._clipboard, target),
+      []
+    );
+    if (pasted.length === 0) {
+      return;
+    }
+    // Offset so a paste into the same place is visibly a second copy rather
+    // than something that looks like nothing happened.
+    for (const id of pasted) {
+      const node = this.getNode(id);
+      if (node) {
+        this.setProperty(id, 'x', String(node.x + 24), { live: true });
+        this.setProperty(id, 'y', String(node.y + 24), { live: true });
+      }
+    }
+    this._syncSelectionFromEngine();
+    this.invalidate();
+    this.setStatus(pasted.length === 1 ? 'Pasted' : `Pasted ${pasted.length} elements`);
+  }
+
+  // ========================================================= arrangement ===
+
+  /** Wraps the selection in a container. */
+  groupSelection() {
+    const ids = this._topLevelSelection();
+    if (ids.length < 2) {
+      this.setStatus('Select two or more elements to group', 'muted');
+      return;
+    }
+    const groupId = this._safe('group', () => this.engine.groupElements(ids), null);
+    if (groupId) {
+      this._syncSelectionFromEngine();
+      this.invalidate();
+      this.setStatus(`Grouped ${ids.length} elements`);
+    }
+  }
+
+  /** Dissolves the selected containers, leaving their children in place. */
+  ungroupSelection() {
+    const ids = this.state.selected.filter((id) => {
+      const node = this.getNode(id);
+      return node && node.children.length > 0;
+    });
+    if (ids.length === 0) {
+      this.setStatus('Select a container to ungroup', 'muted');
+      return;
+    }
+    const freed = this._safe('ungroup', () => this.engine.ungroupElements(ids), []);
+    this._syncSelectionFromEngine();
+    this.invalidate();
+    this.setStatus(freed.length > 0 ? 'Ungrouped' : 'Nothing to ungroup');
+  }
+
+  /**
+   * Lines the selection up along one edge.
+   *
+   * @param {'left'|'centre'|'right'|'top'|'middle'|'bottom'} edge
+   */
+  alignSelection(edge) {
+    const ids = this._alignableSelection();
+    if (ids.length < 2) {
+      this.setStatus('Select two or more elements in the same container', 'muted');
+      return;
+    }
+    this._safe('align', () => this.engine.alignElements(ids, edge), null);
+    this.invalidate();
+    this.setStatus(`Aligned ${edge}`);
+  }
+
+  /**
+   * Spreads the selection so the gaps between them are equal.
+   *
+   * @param {'horizontal'|'vertical'} axis
+   */
+  distributeSelection(axis) {
+    const ids = this._alignableSelection();
+    if (ids.length < 3) {
+      this.setStatus('Distributing needs three or more elements', 'muted');
+      return;
+    }
+    this._safe('distribute', () => this.engine.distributeElements(ids, axis), null);
+    this.invalidate();
+    this.setStatus(`Distributed ${axis === 'horizontal' ? 'across' : 'down'}`);
+  }
+
+  /**
+   * The selection, filtered to what aligning can actually act on.
+   *
+   * Alignment moves `x`/`y`, so it needs siblings of one *absolutely*
+   * positioned parent. In a row or a column the parent decides where things
+   * go, and nudging their coordinates would change nothing at all.
+   *
+   * @returns {string[]}
+   */
+  _alignableSelection() {
+    const ids = this.state.selected.filter((id) => id !== 'root');
+    if (ids.length < 2) {
+      return [];
+    }
+    const first = this.getNode(ids[0]);
+    if (!first) {
+      return [];
+    }
+    const parentId = first.parent || 'root';
+    const parent = this.getNode(parentId);
+    if (!parent || parent.layout !== 'absolute') {
+      return [];
+    }
+    return ids.filter((id) => {
+      const node = this.getNode(id);
+      return node && (node.parent || 'root') === parentId;
+    });
+  }
+
+  /** Whether the align controls can do anything with the current selection. */
+  canAlign() {
+    return this._alignableSelection().length >= 2;
   }
 
   /** Duplicates everything selected, as one undo step. */

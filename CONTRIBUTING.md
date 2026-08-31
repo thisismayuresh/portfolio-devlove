@@ -349,12 +349,17 @@ Read state from `app.state` and from the engine; never keep your own copy.
 One entry in `BINDINGS` in `js/core/shortcuts.js`:
 
 ```js
-{ keys: 'ctrl+shift+d', description: 'Detach from parent', run: () => … },
+{ keys: 'ctrl+shift+d', description: 'Detach from parent', group: 'Arrange', run: () => … },
 ```
 
 Modifier order in the signature is `ctrl`, `alt`, `shift`, then the lowercased
 `event.key`. `ctrl` also matches `⌘`. Typing contexts are excluded
 automatically, including inside shadow roots.
+
+`group` is which section of the `?` overlay it appears under — `Edit`,
+`Select`, `Arrange` or `View`. There is nothing else to update: `dl-help`
+renders that table directly, so the shortcut is documented the moment it
+exists. `description` is the line a user reads, so write it as one.
 
 ---
 

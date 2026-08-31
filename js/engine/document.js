@@ -283,6 +283,260 @@ export function clearDocument(doc) {
 }
 
 /**
+ * Lifts a set of subtrees out into a portable payload.
+ *
+ * Keeps the original ids: they are only used to rebuild the parent/child links
+ * inside the payload, and `insertSubtrees` reassigns them all on the way back
+ * in. That means a payload can be pasted into the document it came from
+ * without colliding with itself.
+ *
+ * @param {any} doc
+ * @param {string[]} ids
+ * @returns {{roots: string[], nodes: Record<string, any>}}
+ */
+export function extractSubtrees(doc, ids) {
+  /** @type {Record<string, any>} */
+  const nodes = {};
+  const roots = [];
+  for (const id of ids) {
+    if (id === doc.root || !doc.nodes[id]) {
+      continue;
+    }
+    roots.push(id);
+    for (const member of collectSubtree(doc, id)) {
+      if (doc.nodes[member]) {
+        nodes[member] = structuredClone(doc.nodes[member]);
+      }
+    }
+  }
+  return { roots, nodes };
+}
+
+/**
+ * Inserts a payload from `extractSubtrees` under `parentId`, with fresh ids.
+ *
+ * Every node is rebuilt through `normalizeNode`, so a payload that has been
+ * round-tripped through a clipboard, hand-edited, or produced by an older
+ * version still lands as a valid subtree rather than as `undefined` fields.
+ *
+ * @param {any} doc
+ * @param {{roots: string[], nodes: Record<string, any>}} payload
+ * @param {string} parentId
+ * @returns {string[]} the ids of the inserted roots
+ */
+export function insertSubtrees(doc, payload, parentId) {
+  const container = resolveContainer(doc, parentId);
+  const parent = requireNode(doc, container);
+
+  // Assign every id first, so a child can be linked before it is visited.
+  /** @type {Map<string, string>} */
+  const fresh = new Map();
+  for (const oldId of Object.keys(payload.nodes || {})) {
+    fresh.set(oldId, nextId(doc));
+  }
+
+  for (const [oldId, raw] of Object.entries(payload.nodes || {})) {
+    const id = /** @type {string} */ (fresh.get(oldId));
+    const node = normalizeNode(id, raw);
+    node.children = (raw.children || []).map((child) => fresh.get(child)).filter(Boolean);
+    doc.nodes[id] = node;
+  }
+
+  // Parent links, from the child lists that survived the remapping.
+  for (const id of fresh.values()) {
+    for (const child of doc.nodes[id].children) {
+      doc.nodes[child].parent = id;
+    }
+  }
+
+  const roots = (payload.roots || []).map((root) => fresh.get(root)).filter(Boolean);
+  for (const root of roots) {
+    doc.nodes[root].parent = container;
+    parent.children.push(root);
+  }
+  return roots;
+}
+
+/**
+ * Wraps several siblings in a new container.
+ *
+ * They must share a parent. Grouping elements from different containers has no
+ * single answer for where the group goes or what happens to the layout around
+ * it, and guessing would move things the user did not ask to move.
+ *
+ * @param {any} doc
+ * @param {string[]} ids
+ * @returns {string} the new container's id
+ * @throws {Error} when the ids do not share one parent
+ */
+export function groupNodes(doc, ids) {
+  const members = ids.filter((id) => id !== doc.root && doc.nodes[id]);
+  if (members.length < 2) {
+    throw new Error('select two or more elements to group');
+  }
+
+  const parentId = doc.nodes[members[0]].parent || doc.root;
+  if (!members.every((id) => (doc.nodes[id].parent || doc.root) === parentId)) {
+    throw new Error('grouping needs elements from the same container');
+  }
+
+  const parent = requireNode(doc, parentId);
+  const flowed = parent.layout !== 'absolute';
+
+  // The box that just contains them, in the parent's own coordinates. In a
+  // flow container those coordinates mean nothing, so the group takes the
+  // default size and the members keep their order instead.
+  const boxes = members.map((id) => doc.nodes[id]);
+  const left = flowed ? 0 : Math.min(...boxes.map((n) => n.x));
+  const top = flowed ? 0 : Math.min(...boxes.map((n) => n.y));
+  const right = flowed ? 0 : Math.max(...boxes.map((n) => n.x + n.width));
+  const bottom = flowed ? 0 : Math.max(...boxes.map((n) => n.y + n.height));
+
+  // Where the first member sat, so the group lands in its place in the order.
+  const index = parent.children.indexOf(members[0]);
+
+  const groupId = addNode(doc, 'container', parentId, left, top);
+  const group = doc.nodes[groupId];
+  group.name = 'Group';
+  // A group is a wrapper, not a card: no fill, no border, no padding.
+  group.style = { custom: {} };
+  if (!flowed) {
+    group.width = Math.max(right - left, MIN_SIZE);
+    group.height = Math.max(bottom - top, MIN_SIZE);
+  }
+
+  // `addNode` appended it; put it back where the first member was.
+  parent.children.pop();
+  parent.children.splice(index < 0 ? parent.children.length : index, 0, groupId);
+
+  for (const id of members) {
+    reparentNode(doc, id, groupId);
+    if (!flowed) {
+      // Their positions were relative to the old parent; rebase them.
+      doc.nodes[id].x -= left;
+      doc.nodes[id].y -= top;
+    }
+  }
+  return groupId;
+}
+
+/**
+ * Dissolves a container, leaving its children where they were on the page.
+ *
+ * @param {any} doc
+ * @param {string} id
+ * @returns {string[]} the ids that were lifted out
+ * @throws {Error} when the node is the root or has no parent
+ */
+export function ungroupNode(doc, id) {
+  const group = requireNode(doc, id);
+  if (id === doc.root || !group.parent) {
+    throw new Error('the page itself cannot be ungrouped');
+  }
+  const parentId = group.parent;
+  const parent = requireNode(doc, parentId);
+  const flowed = parent.layout !== 'absolute';
+  const at = parent.children.indexOf(id);
+  const freed = [...group.children];
+
+  // Spliced in at the group's own position, so the paint order is unchanged.
+  for (const [offset, child] of freed.entries()) {
+    reparentNode(doc, child, parentId, (at < 0 ? parent.children.length : at) + offset);
+    if (!flowed) {
+      doc.nodes[child].x += group.x;
+      doc.nodes[child].y += group.y;
+    }
+  }
+  removeSubtree(doc, id);
+  return freed;
+}
+
+/**
+ * Lines up several siblings along one edge, or centres them on one axis.
+ *
+ * @param {any} doc
+ * @param {string[]} ids
+ * @param {'left'|'centre'|'right'|'top'|'middle'|'bottom'} edge
+ */
+export function alignNodes(doc, ids, edge) {
+  const nodes = ids.map((id) => doc.nodes[id]).filter((node) => node && !node.locked);
+  if (nodes.length < 2) {
+    return;
+  }
+  const left = Math.min(...nodes.map((n) => n.x));
+  const right = Math.max(...nodes.map((n) => n.x + n.width));
+  const top = Math.min(...nodes.map((n) => n.y));
+  const bottom = Math.max(...nodes.map((n) => n.y + n.height));
+
+  for (const node of nodes) {
+    switch (edge) {
+      case 'left':
+        node.x = left;
+        break;
+      case 'centre':
+        node.x = left + (right - left - node.width) / 2;
+        break;
+      case 'right':
+        node.x = right - node.width;
+        break;
+      case 'top':
+        node.y = top;
+        break;
+      case 'middle':
+        node.y = top + (bottom - top - node.height) / 2;
+        break;
+      case 'bottom':
+        node.y = bottom - node.height;
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+/**
+ * Spreads several siblings so the gaps between them are equal.
+ *
+ * The outermost two do not move — they define the span being divided up, which
+ * is what "distribute" means everywhere else it appears in a design tool.
+ *
+ * @param {any} doc
+ * @param {string[]} ids
+ * @param {'horizontal'|'vertical'} axis
+ */
+export function distributeNodes(doc, ids, axis) {
+  const horizontal = axis === 'horizontal';
+  const nodes = ids
+    .map((id) => doc.nodes[id])
+    .filter(Boolean)
+    .sort((a, b) => (horizontal ? a.x - b.x : a.y - b.y));
+  if (nodes.length < 3) {
+    return;
+  }
+
+  const first = nodes[0];
+  const last = nodes[nodes.length - 1];
+  const span = horizontal ? last.x + last.width - first.x : last.y + last.height - first.y;
+  const filled = nodes.reduce((total, n) => total + (horizontal ? n.width : n.height), 0);
+  const gap = (span - filled) / (nodes.length - 1);
+
+  let cursor = horizontal ? first.x : first.y;
+  for (const node of nodes) {
+    if (node.locked) {
+      cursor += (horizontal ? node.width : node.height) + gap;
+      continue;
+    }
+    if (horizontal) {
+      node.x = cursor;
+      cursor += node.width + gap;
+    } else {
+      node.y = cursor;
+      cursor += node.height + gap;
+    }
+  }
+}
+
+/**
  * Deep-copies a subtree and inserts the copy just after the original, offset
  * so it is visible on top of it.
  *
@@ -577,7 +831,7 @@ export function normalizeDocument(incoming) {
  * @param {any} raw
  * @returns {any}
  */
-function normalizeNode(id, raw) {
+export function normalizeNode(id, raw) {
   const source = migrateKeys(raw || {}, NODE_KEYS_CAMEL);
   const kind = resolveKind(source.kind) || 'container';
   const base = createNode(id, kind, Number(source.x) || 0, Number(source.y) || 0);

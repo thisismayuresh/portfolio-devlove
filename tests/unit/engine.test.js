@@ -890,3 +890,222 @@ describe('selection', () => {
     assert.deepEqual(engine.selectedIds(), []);
   });
 });
+
+describe('clipboard', () => {
+  it('copies a subtree and pastes it with fresh ids', () => {
+    const { engine, parent, child } = seeded();
+    const payload = engine.copyElements([parent]);
+    // The payload carries the container *and* what is inside it.
+    assert.deepEqual(payload.roots, [parent]);
+    assert.equal(Object.keys(payload.nodes).length, 2);
+
+    const pasted = engine.pasteElements(payload, 'root');
+    assert.equal(pasted.length, 1);
+    assert.notEqual(pasted[0], parent);
+
+    // A copy, not an alias: the original still has its own child.
+    const copy = engine.getElement(pasted[0]);
+    assert.equal(copy.children.length, 1);
+    assert.ok(!copy.children.includes(child));
+    assert.equal(engine.getElement(parent).children.length, 1);
+  });
+
+  it('leaves the original alone when the pasted copy is edited', () => {
+    const { engine, parent } = seeded();
+    const pasted = engine.pasteElements(engine.copyElements([parent]), 'root');
+    engine.updateElement(pasted[0], 'width', '999');
+    assert.notEqual(engine.getElement(parent).width, 999);
+  });
+
+  it('pastes into the container that was asked for', () => {
+    const { engine, parent, child } = seeded();
+    const pasted = engine.pasteElements(engine.copyElements([child]), parent);
+    assert.equal(engine.getElement(pasted[0]).parent, parent);
+  });
+
+  it('refuses to copy the root', () => {
+    const engine = new Engine();
+    assert.deepEqual(engine.copyElements(['root']).roots, []);
+  });
+
+  it('undoes a paste in one step', () => {
+    const { engine, parent } = seeded();
+    const before = engine.nodeCount();
+    engine.pasteElements(engine.copyElements([parent]), 'root');
+    assert.equal(engine.nodeCount(), before + 2);
+    engine.undo();
+    assert.equal(engine.nodeCount(), before);
+  });
+});
+
+describe('grouping', () => {
+  /**
+   * Two boxes side by side on the page, at known coordinates.
+   * @returns {{engine: Engine, a: string, b: string}}
+   */
+  function pair() {
+    const engine = new Engine();
+    const a = engine.addElement('container', null, 100, 50);
+    const b = engine.addElement('container', null, 300, 120);
+    return { engine, a, b };
+  }
+
+  it('wraps the selection in a group at their bounding box', () => {
+    const { engine, a, b } = pair();
+    const width = engine.getElement(a).width;
+    const group = engine.getElement(engine.groupElements([a, b]));
+
+    assert.equal(group.x, 100);
+    assert.equal(group.y, 50);
+    assert.equal(group.width, 300 + width - 100);
+    assert.equal(group.children.length, 2);
+  });
+
+  it('rebases the members so they do not move on screen', () => {
+    const { engine, a, b } = pair();
+    engine.groupElements([a, b]);
+    // Relative to a group whose origin is (100, 50).
+    assert.deepEqual([engine.getElement(a).x, engine.getElement(a).y], [0, 0]);
+    assert.deepEqual([engine.getElement(b).x, engine.getElement(b).y], [200, 70]);
+  });
+
+  it('puts them back where they were when ungrouped', () => {
+    const { engine, a, b } = pair();
+    const group = engine.groupElements([a, b]);
+    engine.ungroupElements([group]);
+
+    assert.deepEqual([engine.getElement(a).x, engine.getElement(a).y], [100, 50]);
+    assert.deepEqual([engine.getElement(b).x, engine.getElement(b).y], [300, 120]);
+    // The group itself is gone, not merely emptied.
+    assert.throws(() => engine.getElement(group), /no node/);
+    assert.equal(engine.getElement(a).parent, 'root');
+  });
+
+  it('refuses to group across two different containers', () => {
+    const { engine, a, b } = pair();
+    const inside = engine.addElement('text', a, 0, 0);
+    assert.throws(() => engine.groupElements([inside, b]), /same container/);
+  });
+
+  it('refuses to group fewer than two elements', () => {
+    const { engine, a } = pair();
+    assert.throws(() => engine.groupElements([a]), /two or more/);
+  });
+
+  it('selects the group, then its members again on ungroup', () => {
+    const { engine, a, b } = pair();
+    const group = engine.groupElements([a, b]);
+    assert.deepEqual(engine.selectedIds(), [group]);
+    assert.deepEqual(engine.ungroupElements([group]).sort(), [a, b].sort());
+  });
+
+  it('undoes a group in one step', () => {
+    const { engine, a, b } = pair();
+    const before = engine.nodeCount();
+    engine.groupElements([a, b]);
+    engine.undo();
+    assert.equal(engine.nodeCount(), before);
+    assert.equal(engine.getElement(a).parent, 'root');
+    assert.equal(engine.getElement(a).x, 100);
+  });
+
+  it('keeps the members in a flow container in order', () => {
+    const engine = new Engine();
+    const stack = engine.addElement('stack', null, 0, 0);
+    const a = engine.addElement('text', stack, 0, 0);
+    const b = engine.addElement('text', stack, 0, 0);
+    const group = engine.getElement(engine.groupElements([a, b]));
+    // A stack ignores x/y, so the group must not try to rebase them.
+    assert.deepEqual(group.children, [a, b]);
+    assert.equal(engine.getElement(a).x, 0);
+  });
+});
+
+describe('align and distribute', () => {
+  /**
+   * Three boxes of a known size at known offsets.
+   * @returns {{engine: Engine, ids: string[]}}
+   */
+  function trio() {
+    const engine = new Engine();
+    const ids = [
+      [0, 0],
+      [40, 100],
+      [400, 220],
+    ].map(([x, y]) => {
+      const id = engine.addElement('container', null, x, y);
+      engine.updateElement(id, 'width', '100');
+      engine.updateElement(id, 'height', '50');
+      return id;
+    });
+    return { engine, ids };
+  }
+
+  it('aligns left to the leftmost edge', () => {
+    const { engine, ids } = trio();
+    engine.alignElements(ids, 'left');
+    assert.deepEqual(
+      ids.map((id) => engine.getElement(id).x),
+      [0, 0, 0]
+    );
+  });
+
+  it('aligns right to the rightmost edge', () => {
+    const { engine, ids } = trio();
+    engine.alignElements(ids, 'right');
+    // The furthest right edge is 400 + 100.
+    for (const id of ids) {
+      const node = engine.getElement(id);
+      assert.equal(node.x + node.width, 500);
+    }
+  });
+
+  it('aligns middles to a shared centre line', () => {
+    const { engine, ids } = trio();
+    engine.alignElements(ids, 'middle');
+    const centres = ids.map((id) => {
+      const node = engine.getElement(id);
+      return node.y + node.height / 2;
+    });
+    assert.deepEqual(centres, [centres[0], centres[0], centres[0]]);
+  });
+
+  it('leaves the outer two alone when distributing', () => {
+    const { engine, ids } = trio();
+    engine.distributeElements(ids, 'horizontal');
+    assert.equal(engine.getElement(ids[0]).x, 0);
+    assert.equal(engine.getElement(ids[2]).x, 400);
+  });
+
+  it('makes the gaps equal when distributing', () => {
+    const { engine, ids } = trio();
+    engine.distributeElements(ids, 'horizontal');
+    const boxes = ids.map((id) => engine.getElement(id)).sort((a, b) => a.x - b.x);
+    const first = boxes[1].x - (boxes[0].x + boxes[0].width);
+    const second = boxes[2].x - (boxes[1].x + boxes[1].width);
+    assert.ok(Math.abs(first - second) < 0.001, `${first} vs ${second}`);
+  });
+
+  it('does nothing with fewer than three when distributing', () => {
+    const { engine, ids } = trio();
+    engine.distributeElements(ids.slice(0, 2), 'horizontal');
+    assert.equal(engine.getElement(ids[1]).x, 40);
+  });
+
+  it('never moves a locked element', () => {
+    const { engine, ids } = trio();
+    engine.updateElement(ids[1], 'locked', 'true');
+    engine.alignElements(ids, 'left');
+    assert.equal(engine.getElement(ids[1]).x, 40);
+  });
+
+  it('undoes an align in one step', () => {
+    const { engine, ids } = trio();
+    engine.alignElements(ids, 'left');
+    engine.undo();
+    assert.deepEqual(
+      ids.map((id) => engine.getElement(id).x),
+      [0, 40, 400]
+    );
+  });
+});

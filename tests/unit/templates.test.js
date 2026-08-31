@@ -230,7 +230,9 @@ describe('exports are self-contained', () => {
       // script sources, no font or image hosts to go down on someone else.
       assert.ok(!/<link\b/i.test(html), 'links to an external stylesheet');
       assert.ok(!/<script[^>]+\bsrc=/i.test(html), 'loads a script from elsewhere');
-      assert.ok(!/\b(?:src|href)="https?:\/\//i.test(html), 'fetches a remote asset');
+      assert.ok(!/\bsrc="https?:\/\//i.test(html), 'fetches a remote image, video or font');
+      assert.ok(!/url\(\s*['"]?https?:\/\//i.test(html), 'fetches a remote CSS asset');
+      assert.ok(!/@import/i.test(html), 'imports a remote stylesheet');
     });
   }
 

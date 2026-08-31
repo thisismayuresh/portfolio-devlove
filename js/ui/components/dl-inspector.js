@@ -99,6 +99,14 @@ export class DlInspector extends PanelElement {
     .textarea { min-height: 66px; font-size: var(--text-md); }
 
     /* Custom CSS rows stay tabular — they are code, not prose. */
+    .align {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 2px 0;
+    }
+    .align__gap { flex: 1 1 auto; }
+
     /* URL box, upload button, and a clear button when there is something to
        clear. The upload button never wraps below the field. */
     .file {
@@ -262,7 +270,9 @@ export class DlInspector extends PanelElement {
       .join('');
 
     this.$('#body').innerHTML =
-      body + (this._tab === 'advanced' ? this._renderCustomSection(node) : '');
+      this._renderAlignSection() +
+      body +
+      (this._tab === 'advanced' ? this._renderCustomSection(node) : '');
   }
 
   /**
@@ -540,6 +550,58 @@ export class DlInspector extends PanelElement {
   }
 
   /**
+   * Align and distribute, shown only when there is more than one thing to
+   * align and the parent is not already doing the positioning.
+   *
+   * Actions rather than properties, so this is written out rather than driven
+   * by the schema — the schema describes values a node *has*, and "align these
+   * three to their left edges" is not one of those.
+   *
+   * @returns {string}
+   */
+  _renderAlignSection() {
+    if (app.state.selected.length < 2 || this._tab !== 'visual') {
+      return '';
+    }
+    if (!app.canAlign()) {
+      // Worth saying why rather than hiding the controls with no explanation.
+      return this._section(
+        'align',
+        'Align',
+        `<p class="note">These sit in a Stack or Grid, which positions them
+           itself. Change the container's layout to Free to align them by hand,
+           or reorder them by dragging.</p>`
+      );
+    }
+
+    const button = (action, value, label, glyph) =>
+      `<button class="icon-btn" data-action="${action}" data-value="${value}"
+               title="${label}" aria-label="${label}">${icon(glyph, 14)}</button>`;
+
+    return this._section(
+      'align',
+      'Align',
+      `<div class="align">
+         ${button('align', 'left', 'Align left', 'alignLeft')}
+         ${button('align', 'centre', 'Align centres', 'alignCentreX')}
+         ${button('align', 'right', 'Align right', 'alignRight')}
+         <span class="align__gap"></span>
+         ${button('align', 'top', 'Align top', 'alignTop')}
+         ${button('align', 'middle', 'Align middles', 'alignCentreY')}
+         ${button('align', 'bottom', 'Align bottom', 'alignBottom')}
+       </div>
+       <div class="align">
+         ${button('distribute', 'horizontal', 'Space evenly across', 'distributeX')}
+         ${button('distribute', 'vertical', 'Space evenly down', 'distributeY')}
+         <span class="align__gap"></span>
+         ${button('group', '', 'Group into a container', 'group')}
+         ${button('ungroup', '', 'Ungroup', 'ungroup')}
+       </div>`,
+      String(app.state.selected.length)
+    );
+  }
+
+  /**
    * Raw CSS escape hatch: every `custom.*` declaration the node carries.
    *
    * @param {any} node
@@ -704,6 +766,18 @@ export class DlInspector extends PanelElement {
           app.setProperty(id, action.getAttribute('data-upload-key'), '');
           this.render();
         }
+        break;
+      case 'align':
+        app.alignSelection(action.getAttribute('data-value'));
+        break;
+      case 'distribute':
+        app.distributeSelection(action.getAttribute('data-value'));
+        break;
+      case 'group':
+        app.groupSelection();
+        break;
+      case 'ungroup':
+        app.ungroupSelection();
         break;
       case 'add-custom':
         this._addCustom();

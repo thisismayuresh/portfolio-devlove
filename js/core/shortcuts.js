@@ -14,6 +14,7 @@ import { SHORTCUT_TO_KIND } from '../registry/elements.js';
  * @typedef {object} Binding
  * @property {string} keys        `"ctrl+shift+z"` — modifiers in the order ctrl, alt, shift
  * @property {string} description shown in help surfaces
+ * @property {string} [group]     section it appears under in the help overlay
  * @property {(event: KeyboardEvent) => void} run
  */
 
@@ -23,63 +24,89 @@ const NUDGE_LARGE = 10;
 
 /** @type {ReadonlyArray<Binding>} */
 export const BINDINGS = Object.freeze([
-  { keys: 'ctrl+z', description: 'Undo', run: () => app.undo() },
-  { keys: 'ctrl+shift+z', description: 'Redo', run: () => app.redo() },
-  { keys: 'ctrl+y', description: 'Redo', run: () => app.redo() },
+  { keys: 'ctrl+z', description: 'Undo', group: 'Edit', run: () => app.undo() },
+  { keys: 'ctrl+shift+z', description: 'Redo', group: 'Edit', run: () => app.redo() },
+  { keys: 'ctrl+y', description: 'Redo', group: 'Edit', run: () => app.redo() },
   {
     keys: 'ctrl+d',
     description: 'Duplicate selection',
+    group: 'Edit',
     run: () => app.duplicateSelection(),
   },
   {
     keys: 'delete',
     description: 'Delete selection',
+    group: 'Edit',
     run: () => app.removeSelection(),
   },
   {
     keys: 'backspace',
     description: 'Delete selection',
+    group: 'Edit',
     run: () => app.removeSelection(),
   },
-  { keys: 'escape', description: 'Clear selection', run: () => app.select(null) },
+  { keys: 'escape', description: 'Clear selection', group: 'Select', run: () => app.select(null) },
   {
     keys: 'ctrl+a',
     description: 'Select all siblings',
+    group: 'Select',
     run: () => app.selectSiblings(),
   },
-  { keys: 'ctrl+p', description: 'Toggle preview', run: () => app.toggleMode() },
-  { keys: 'ctrl+0', description: 'Reset zoom', run: () => app.setZoom(1) },
-  { keys: 'ctrl+=', description: 'Zoom in', run: () => app.zoomBy(1.2) },
-  { keys: 'ctrl++', description: 'Zoom in', run: () => app.zoomBy(1.2) },
-  { keys: 'ctrl+-', description: 'Zoom out', run: () => app.zoomBy(1 / 1.2) },
+  { keys: 'ctrl+c', description: 'Copy', group: 'Edit', run: () => app.copySelection() },
+  { keys: 'ctrl+x', description: 'Cut', group: 'Edit', run: () => app.cutSelection() },
+  { keys: 'ctrl+v', description: 'Paste', group: 'Edit', run: () => app.pasteClipboard() },
+  {
+    keys: 'ctrl+g',
+    description: 'Group selection',
+    group: 'Arrange',
+    run: () => app.groupSelection(),
+  },
+  {
+    keys: 'ctrl+shift+g',
+    description: 'Ungroup',
+    group: 'Arrange',
+    run: () => app.ungroupSelection(),
+  },
+  { keys: 'ctrl+p', description: 'Toggle preview', group: 'View', run: () => app.toggleMode() },
+  { keys: '?', description: 'Keyboard shortcuts', group: 'View', run: () => app.emit('help:open') },
+  { keys: 'ctrl+0', description: 'Reset zoom', group: 'View', run: () => app.setZoom(1) },
+  { keys: 'ctrl+=', description: 'Zoom in', group: 'View', run: () => app.zoomBy(1.2) },
+  { keys: 'ctrl++', description: 'Zoom in', group: 'View', run: () => app.zoomBy(1.2) },
+  { keys: 'ctrl+-', description: 'Zoom out', group: 'View', run: () => app.zoomBy(1 / 1.2) },
   {
     keys: 'arrowup',
     description: 'Nudge up',
+    group: 'Arrange',
     run: (event) => app.nudgeSelection(0, -(event.shiftKey ? NUDGE_LARGE : NUDGE)),
   },
   {
     keys: 'arrowdown',
     description: 'Nudge down',
+    group: 'Arrange',
     run: (event) => app.nudgeSelection(0, event.shiftKey ? NUDGE_LARGE : NUDGE),
   },
   {
     keys: 'arrowleft',
     description: 'Nudge left',
+    group: 'Arrange',
     run: (event) => app.nudgeSelection(-(event.shiftKey ? NUDGE_LARGE : NUDGE), 0),
   },
   {
     keys: 'arrowright',
     description: 'Nudge right',
+    group: 'Arrange',
     run: (event) => app.nudgeSelection(event.shiftKey ? NUDGE_LARGE : NUDGE, 0),
   },
   {
     keys: 'ctrl+]',
     description: 'Bring forward',
+    group: 'Arrange',
     run: () => app.reorderSelection(1),
   },
   {
     keys: 'ctrl+[',
     description: 'Send backward',
+    group: 'Arrange',
     run: () => app.reorderSelection(-1),
   },
 ]);

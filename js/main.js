@@ -21,6 +21,7 @@ import './ui/components/dl-templates.js';
 import './ui/components/dl-canvas.js';
 import './ui/components/dl-inspector.js';
 import './ui/components/dl-status.js';
+import './ui/components/dl-help.js';
 
 const boot = document.getElementById('boot');
 const bootNote = document.getElementById('boot-note');

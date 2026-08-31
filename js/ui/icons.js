@@ -69,6 +69,7 @@ export const GLYPHS = Object.freeze({
   save: '<path d="M3.4 2.6h7.1l2.5 2.5v8.3a.8.8 0 0 1-.8.8H3.4a.8.8 0 0 1-.8-.8V3.4a.8.8 0 0 1 .8-.8Z"/><path d="M5.4 2.6v3.6h5.2V2.6M5.4 13.4v-3.6h5.2v3.6"/>',
   plus: '<path d="M8 3.2v9.6M3.2 8h9.6"/>',
   minus: '<path d="M3.2 8h9.6"/>',
+  close: '<path d="m4 4 8 8M12 4l-8 8"/>',
   layers:
     '<path d="M8 2.2 14 5.4 8 8.6 2 5.4Z"/><path d="m2 8.6 6 3.2 6-3.2"/><path d="m2 11.4 6 3.2 6-3.2" opacity=".5"/>',
   sliders:
@@ -81,6 +82,28 @@ export const GLYPHS = Object.freeze({
   frame: '<path d="M5 1.8v12.4M11 1.8v12.4M1.8 5h12.4M1.8 11h12.4"/>',
   info: '<circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.6M8 5.2v.9"/>',
   warning: '<path d="M8 2.6 14.2 13H1.8Z"/><path d="M8 6.6v3M8 11.2v.7"/>',
+
+  // --- align & distribute ---------------------------------------------------
+  alignLeft:
+    '<path d="M2.5 2v12"/><rect x="5" y="4" width="8.5" height="3"/><rect x="5" y="9" width="5.5" height="3"/>',
+  alignCentreX:
+    '<path d="M8 1.5v13"/><rect x="3.5" y="4" width="9" height="3"/><rect x="5.2" y="9" width="5.6" height="3"/>',
+  alignRight:
+    '<path d="M13.5 2v12"/><rect x="2.5" y="4" width="8.5" height="3"/><rect x="5.5" y="9" width="5.5" height="3"/>',
+  alignTop:
+    '<path d="M2 2.5h12"/><rect x="4" y="5" width="3" height="8.5"/><rect x="9" y="5" width="3" height="5.5"/>',
+  alignCentreY:
+    '<path d="M1.5 8h13"/><rect x="4" y="3.5" width="3" height="9"/><rect x="9" y="5.2" width="3" height="5.6"/>',
+  alignBottom:
+    '<path d="M2 13.5h12"/><rect x="4" y="2.5" width="3" height="8.5"/><rect x="9" y="5.5" width="3" height="5.5"/>',
+  distributeX:
+    '<path d="M1.5 2v12M14.5 2v12"/><rect x="4" y="5" width="2.5" height="6"/><rect x="9.5" y="5" width="2.5" height="6"/>',
+  distributeY:
+    '<path d="M2 1.5h12M2 14.5h12"/><rect x="5" y="4" width="6" height="2.5"/><rect x="5" y="9.5" width="6" height="2.5"/>',
+  group:
+    '<rect x="2" y="2" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/><path d="M2 11.5h1.5M12.5 2v1.5" opacity=".55"/>',
+  ungroup:
+    '<rect x="2" y="2" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/><path d="M8.5 4.5h5M4.5 8.5v5" opacity=".55"/>',
 
   // --- device breakpoints ---------------------------------------------------
   phone: '<rect x="4.5" y="2" width="7" height="12"/><path d="M7 12.2h2"/>',

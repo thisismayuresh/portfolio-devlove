@@ -82,6 +82,9 @@ The editor itself has **zero** runtime dependencies.
 | Resize                       | Drag any of the eight handles. `Shift` locks the aspect ratio on corners                                                         |
 | Nest inside a container      | Drag over it — the green outline shows the receiving container                                                                   |
 | Reorder / reparent precisely | Drag rows in the **Layers** tree (above / into / below zones)                                                                    |
+| Copy between containers      | `Ctrl+C` then select a container and `Ctrl+V` — the copy lands inside it                                                         |
+| Group                        | Select several and `Ctrl+G`. The group is a real container, so it can be styled, moved and laid out like anything else           |
+| Line things up               | Select two or more and use **Align** at the top of the inspector — six edges, plus even spacing across or down                   |
 | Edit text                    | Double-click the element. `Enter` commits, `Escape` cancels                                                                      |
 | Style                        | Everything in the right rail, including a raw **Custom CSS** escape hatch                                                        |
 | Change the page itself       | Deselect (`Escape`) — the inspector switches to document settings                                                                |
@@ -176,9 +179,12 @@ boundaries, editing that one file retints the entire tool.
 
 | Keys                              | Action                                                                |
 | --------------------------------- | --------------------------------------------------------------------- |
+| `?`                               | Show every shortcut, in the editor                                    |
 | `Ctrl+Z` / `Ctrl+Shift+Z`         | Undo / redo                                                           |
 | `Delete` / `Backspace`            | Delete selection                                                      |
+| `Ctrl+C` / `Ctrl+X` / `Ctrl+V`    | Copy / cut / paste — paste lands inside whatever is selected          |
 | `Ctrl+D`                          | Duplicate                                                             |
+| `Ctrl+G` / `Ctrl+Shift+G`         | Group / ungroup                                                       |
 | `Arrows` / `Shift+Arrows`         | Nudge 1px / 10px                                                      |
 | `Ctrl+[` / `Ctrl+]`               | Send backward / bring forward                                         |
 | `Ctrl+P`                          | Toggle preview                                                        |
@@ -190,7 +196,8 @@ boundaries, editing that one file retints the entire tool.
 Bindings live in one table in [`js/core/shortcuts.js`](js/core/shortcuts.js).
 The single-letter element keys are generated from
 [`js/registry/elements.js`](js/registry/elements.js), so a tile's hint and its
-key can never disagree.
+key can never disagree — and the `?` overlay is rendered from both tables, so a
+new shortcut documents itself.
 
 ---
 
@@ -238,7 +245,7 @@ project/
 │   │   ├── shared-styles.js      shadow-DOM style primitives
 │   │   ├── panel-element.js      base class for every panel
 │   │   └── components/           dl-toolbar, dl-palette, dl-layers, dl-canvas,
-│   │                             dl-inspector, dl-rail, dl-status
+│   │                             dl-inspector, dl-rail, dl-status, dl-help
 │   │
 │   └── util/files.js             download / open, on Blob and <input type=file>
 │

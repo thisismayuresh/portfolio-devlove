@@ -27,6 +27,36 @@ const T = LIGHT;
 const GUTTER = 160;
 const COLUMN = 960;
 
+/**
+ * The roles in the experience timeline, newest first.
+ *
+ * Kept as data rather than written out as nodes: the section below builds a row
+ * per entry, so adding a job is one object and no layout arithmetic.
+ */
+const ROLES = [
+  {
+    dates: '2023 — now',
+    title: 'Full-stack engineer',
+    company: 'Northwind Labs',
+    summary:
+      'Billing and reporting for a B2B dashboard — React and NestJS over Postgres. Took the slowest report from four seconds to under two hundred milliseconds by removing an N+1 and adding the index it had been missing since launch.',
+  },
+  {
+    dates: '2022 — 2023',
+    title: 'Backend developer',
+    company: 'Tidepool Systems',
+    summary:
+      'Moved an order pipeline off overnight cron jobs and onto Kafka, with idempotent consumers so a retry could never charge someone twice. Wrote the load tests that showed it held at ten times the traffic.',
+  },
+  {
+    dates: '2021 — 2022',
+    title: 'Frontend developer, contract',
+    company: 'Two agencies',
+    summary:
+      'Design-system components in Storybook for three product teams, with Jest and Vitest coverage on the ones everyone else built on top of.',
+  },
+];
+
 /** @returns {{page: Record<string, any>, nodes: any[]}} */
 export function build() {
   return {
@@ -35,7 +65,7 @@ export function build() {
       description:
         'Full-stack developer with a computer science background. React and Next.js on Node and NestJS, with the fundamentals underneath — data structures, databases, networks and system design.',
       width: 1280,
-      minHeight: 3180,
+      minHeight: 4074,
       background: T.surface,
       fontFamily: "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif",
     },
@@ -49,6 +79,7 @@ export function build() {
         links: [
           { label: 'Skills', target: 'skills' },
           { label: 'Work', target: 'work' },
+          { label: 'Experience', target: 'experience' },
           { label: 'About', target: 'about' },
         ],
         cta: { label: 'Get in touch', target: 'contact' },
@@ -61,7 +92,7 @@ export function build() {
       ),
 
       /* ============================================================= hero === */
-      band('hero', { y: 77, height: 600, name: 'Hero' }),
+      band('hero', { y: 77, height: 686, name: 'Hero' }),
       // One column stack holds the whole left-hand side, so the buttons sit
       // under the copy however long the headline wraps. Nothing here needs a
       // hand-computed `y`.
@@ -112,7 +143,7 @@ export function build() {
         ref: 'hero-head',
         parent: 'hero-col',
         title: 'I build web apps\nwith computer science at their core.',
-        body: 'A CS degree and three years shipping production React on Node, from Pune. I care about the parts underneath — the query plan, the cache invalidation, the failure mode you only meet at 3am.',
+        body: 'A computer science degree and three years shipping production React on Node, from Pune. I like the parts underneath as much as the parts you can see: how the data is modelled, why a query is slow, where a system gives way when it is asked for ten times as much.',
         width: 540,
         size: 46,
         theme: T,
@@ -197,7 +228,7 @@ export function build() {
 
       /* =========================================================== skills === */
       band('skills', {
-        y: 677,
+        y: 763,
         height: 740,
         background: T.wash,
         anchor: 'skills',
@@ -243,7 +274,7 @@ export function build() {
       ),
 
       /* ============================================================= work === */
-      band('work', { y: 1417, height: 580, anchor: 'work', name: 'Work' }),
+      band('work', { y: 1503, height: 580, anchor: 'work', name: 'Work' }),
       ...heading({
         ref: 'work-head',
         parent: 'work',
@@ -284,8 +315,108 @@ export function build() {
         { parent: 'work', x: GUTTER, y: 446 }
       ),
 
+      /* ======================================================= experience === */
+      band('experience', {
+        y: 2083,
+        height: 676,
+        background: T.wash,
+        anchor: 'experience',
+        name: 'Experience',
+      }),
+      ...heading({
+        ref: 'exp-head',
+        parent: 'experience',
+        x: GUTTER,
+        y: 68,
+        title: 'Where I have worked',
+        body: 'Three years, three teams, and a reasonable amount of on-call.',
+        width: 560,
+        theme: T,
+      }),
+      // A column stack holding one row per role, with a rule between them.
+      // Nothing here has a hand-computed `y`: add or remove a role and the
+      // rest of the timeline moves itself.
+      el(
+        'stack',
+        { name: 'Timeline', width: COLUMN, layout: 'column', gap: 0, padding: 0 },
+        { ref: 'timeline', parent: 'experience', x: GUTTER, y: 188 }
+      ),
+      ...ROLES.flatMap((role, index) => {
+        const rowRef = `role-${index}`;
+        return [
+          // The rule goes above every row but the first, so the group reads as
+          // one table rather than a set of boxed cards.
+          ...(index === 0
+            ? []
+            : [
+                el(
+                  'divider',
+                  { name: 'Role rule', width: COLUMN, height: 1, background: T.line },
+                  { parent: 'timeline' }
+                ),
+              ]),
+          el(
+            'stack',
+            {
+              name: `${role.company} row`,
+              width: COLUMN,
+              layout: 'row',
+              gap: 36,
+              padding: 0,
+              paddingTop: 22,
+              paddingBottom: 22,
+            },
+            { ref: rowRef, parent: 'timeline' }
+          ),
+          el(
+            'text',
+            {
+              name: 'Dates',
+              width: 132,
+              content: role.dates,
+              fontSize: 14,
+              lineHeight: 1.5,
+              color: T.faint,
+              // Tabular figures so the year columns line up down the page.
+              'custom.font-variant-numeric': 'tabular-nums',
+            },
+            { parent: rowRef }
+          ),
+          el(
+            'stack',
+            { name: 'Role detail', width: 620, layout: 'column', gap: 6, padding: 0 },
+            { ref: `${rowRef}-detail`, parent: rowRef }
+          ),
+          el(
+            'text',
+            {
+              name: 'Role title',
+              width: 620,
+              content: `${role.title} · ${role.company}`,
+              fontSize: 16.5,
+              fontWeight: '600',
+              lineHeight: 1.4,
+              color: T.ink,
+            },
+            { parent: `${rowRef}-detail` }
+          ),
+          el(
+            'text',
+            {
+              name: 'Role summary',
+              width: 620,
+              content: role.summary,
+              fontSize: 15,
+              lineHeight: 1.65,
+              color: T.muted,
+            },
+            { parent: `${rowRef}-detail` }
+          ),
+        ];
+      }),
+
       /* ============================================================ about === */
-      band('about', { y: 1997, height: 400, background: T.wash, anchor: 'about', name: 'About' }),
+      band('about', { y: 2759, height: 560, anchor: 'about', name: 'About' }),
       ...heading({
         ref: 'about-head',
         parent: 'about',
@@ -328,9 +459,26 @@ export function build() {
         },
         { parent: 'about', x: 660, y: 156 }
       ),
+      el(
+        'text',
+        {
+          name: 'Education',
+          width: 440,
+          content: 'B.E. Computer Science, 2022. Still the best four years of reading I have done.',
+          fontSize: 14.5,
+          lineHeight: 1.7,
+          color: T.faint,
+        },
+        { parent: 'about', x: GUTTER, y: 288 }
+      ),
 
       /* ========================================================== contact === */
-      band('contact', { y: 2397, height: 640, anchor: 'contact', name: 'Contact' }),
+      el(
+        'divider',
+        { name: 'Contact rule', width: COLUMN, height: 1, background: T.line },
+        { parent: 'root', x: GUTTER, y: 3319 }
+      ),
+      band('contact', { y: 3319, height: 612, anchor: 'contact', name: 'Contact' }),
       ...heading({
         ref: 'contact-head',
         parent: 'contact',
@@ -341,6 +489,13 @@ export function build() {
         width: 440,
         theme: T,
       }),
+      // Email and the profiles that back it up, stacked so the column grows
+      // with however many you keep.
+      el(
+        'stack',
+        { name: 'Contact details', width: 440, layout: 'column', gap: 14, padding: 0 },
+        { ref: 'contact-details', parent: 'contact', x: GUTTER, y: 244 }
+      ),
       el(
         'link',
         {
@@ -348,12 +503,57 @@ export function build() {
           width: 300,
           content: 'mayur@example.com',
           href: 'mailto:mayur@example.com',
-          fontSize: 17,
+          fontSize: 18,
           color: T.ink,
           fontWeight: '600',
           textDecoration: 'underline',
         },
-        { parent: 'contact', x: GUTTER, y: 252 }
+        { parent: 'contact-details' }
+      ),
+      el(
+        'stack',
+        {
+          name: 'Profiles',
+          width: 440,
+          layout: 'row',
+          gap: 20,
+          padding: 0,
+          alignItems: 'center',
+        },
+        { ref: 'profiles', parent: 'contact-details' }
+      ),
+      ...[
+        { label: 'LinkedIn', href: 'https://www.linkedin.com/in/your-handle' },
+        { label: 'GitHub', href: 'https://github.com/your-handle' },
+        { label: 'Read.cv', href: 'https://read.cv/your-handle' },
+      ].map((profile) =>
+        el(
+          'link',
+          {
+            name: `${profile.label} link`,
+            width: Math.max(72, profile.label.length * 10),
+            content: `${profile.label} ↗`,
+            href: profile.href,
+            fontSize: 15.5,
+            color: T.muted,
+            fontWeight: '500',
+            cursor: 'pointer',
+            'data.newTab': 'true',
+          },
+          { parent: 'profiles' }
+        )
+      ),
+      el(
+        'text',
+        {
+          name: 'Availability',
+          width: 420,
+          content: 'Usually replies within a day. Based in Pune, working across IST and CET.',
+          fontSize: 14.5,
+          lineHeight: 1.6,
+          color: T.faint,
+        },
+        { parent: 'contact-details' }
       ),
       el(
         'form',
@@ -429,10 +629,10 @@ export function build() {
 
       /* =========================================================== footer === */
       ...footer({
-        y: 3037,
+        y: 3931,
         gutter: GUTTER,
         width: COLUMN,
-        note: 'Built with devlove. Everything on this page is editable — start anywhere.',
+        note: 'Built 💖 with devlove. Everything on this page is editable — start anywhere.',
         theme: { ...T, muted: T.faint },
       }),
     ],
