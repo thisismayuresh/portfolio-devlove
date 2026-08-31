@@ -97,7 +97,12 @@ export class DlStatus extends PanelElement {
     const selection = app.state.selection;
     const node = selection ? app.getNode(selection) : null;
 
-    this.$('#fact-selection').textContent = node ? `${node.kind} · ${node.name}` : 'no selection';
+    const count = app.state.selected.length;
+    this.$('#fact-selection').textContent = !node
+      ? 'no selection'
+      : count > 1
+        ? `${count} selected`
+        : `${node.kind} · ${node.name}`;
 
     const rect = selection ? app.rectOf(selection) : null;
     this.$('#fact-size').textContent = rect

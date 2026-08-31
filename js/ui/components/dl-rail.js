@@ -25,7 +25,7 @@ import { app } from '../../core/app.js';
 export const RAIL_ITEMS = Object.freeze([
   { panel: 'elements', icon: 'plus', label: 'Elements', shortcut: '1' },
   { panel: 'layers', icon: 'layers', label: 'Layers', shortcut: '2' },
-  { panel: 'templates', icon: 'grid', label: 'Templates', shortcut: '3' },
+  { panel: 'templates', icon: 'templates', label: 'Templates', shortcut: '3' },
 ]);
 
 export class DlRail extends PanelElement {

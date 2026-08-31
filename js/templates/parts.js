@@ -392,14 +392,23 @@ export const LIGHT = Object.freeze({
   accentInk: '#ffffff',
 });
 
-/** A dark theme, for templates that want a night-mode landing page. */
+/**
+ * A dark theme, for templates that want a night-mode landing page.
+ *
+ * The greys are **neutral**, with no hue mixed into them, and the accent is a
+ * green. Both are deliberate. A dark page built on blue-grey surfaces with a
+ * blue accent is the single most over-used palette on the web, and a template
+ * that ships it looks generated rather than designed. Neutral near-black with
+ * one saturated accent is the palette real developer products converge on, and
+ * it leaves the accent free to actually mean something.
+ */
 export const DARK = Object.freeze({
-  ink: '#f3f6fc',
-  muted: '#98a3b8',
-  faint: '#6a7488',
-  line: '#232a38',
-  surface: '#141a24',
-  wash: '#0d121a',
-  accent: '#5b8cff',
-  accentInk: '#0b0f16',
+  ink: '#ededed',
+  muted: '#a1a1a1',
+  faint: '#6f6f6f',
+  line: '#262626',
+  surface: '#121212',
+  wash: '#0a0a0a',
+  accent: '#3ecf8e',
+  accentInk: '#05231a',
 });

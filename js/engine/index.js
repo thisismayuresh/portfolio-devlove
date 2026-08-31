@@ -47,8 +47,16 @@ export class Engine {
     this.doc = createDocument();
     this.history = new History();
 
-    /** @type {string | null} */
-    this._selection = null;
+    /**
+     * Selected ids, in the order they were picked. The **last** one is the
+     * primary — the one the inspector reads and the one resize handles belong
+     * to. Everything else in the list follows what happens to it.
+     *
+     * An array rather than a `Set` because that order is meaningful.
+     *
+     * @type {string[]}
+     */
+    this._selection = [];
 
     /**
      * Measured boxes reported by the preview frame, as `[x, y, w, h]`.
@@ -78,7 +86,7 @@ export class Engine {
     }
     return this._guard(() => {
       const id = addNode(this.doc, resolved, parentId, x, y);
-      this._selection = id;
+      this._selection = [id];
       return id;
     });
   }
@@ -109,7 +117,7 @@ export class Engine {
           throw new Error(`\`${key}\`: ${error.message}`);
         }
       }
-      this._selection = id;
+      this._selection = [id];
       return id;
     });
   }
@@ -123,14 +131,61 @@ export class Engine {
   }
 
   /**
+   * Deletes several elements as **one** undo step.
+   *
+   * Not a loop over `deleteElement` in the caller: each of those takes its own
+   * checkpoint, so deleting four elements would take four presses of Ctrl+Z to
+   * put back. Batching belongs here, next to `_guard`, because here is the only
+   * place that knows where an undo boundary goes.
+   *
+   * Ids that have already gone — a child whose container was earlier in the
+   * list — are skipped rather than throwing.
+   *
+   * @param {string[]} ids
+   * @returns {number} how many were actually removed
+   */
+  deleteElements(ids) {
+    return this._guard(() => {
+      let removed = 0;
+      for (const id of ids) {
+        if (id === this.doc.root || !nodeAt(this.doc, id)) {
+          continue;
+        }
+        deleteNode(this.doc, id);
+        removed += 1;
+      }
+      this._validateSelection();
+      return removed;
+    });
+  }
+
+  /**
    * @param {string} id
    * @returns {string} the new subtree's root id
    */
   duplicateElement(id) {
     return this._guard(() => {
       const clone = duplicateNode(this.doc, id);
-      this._selection = clone;
+      this._selection = [clone];
       return clone;
+    });
+  }
+
+  /**
+   * Duplicates several elements as one undo step, and selects the copies.
+   *
+   * @param {string[]} ids
+   * @returns {string[]} the new subtree root ids
+   */
+  duplicateElements(ids) {
+    return this._guard(() => {
+      const clones = ids
+        .filter((id) => id !== this.doc.root && nodeAt(this.doc, id))
+        .map((id) => duplicateNode(this.doc, id));
+      if (clones.length > 0) {
+        this._selection = clones;
+      }
+      return clones;
     });
   }
 
@@ -253,14 +308,68 @@ export class Engine {
 
   // =========================================================== selection ===
 
-  /** @param {string | null} [id] */
-  select(id = null) {
-    this._selection = id && nodeAt(this.doc, id) ? id : null;
+  /**
+   * Replaces the selection.
+   *
+   * @param {string | string[] | null} [ids] one id, several, or nothing
+   */
+  select(ids = null) {
+    const list = ids === null || ids === undefined ? [] : [ids].flat();
+    // Deduplicated, and only ids that still exist — a stale id from a panel
+    // that has not re-rendered yet must not resurrect a deleted node.
+    this._selection = [...new Set(list)].filter((id) => nodeAt(this.doc, id));
   }
 
-  /** @returns {string | null} */
+  /**
+   * Adds an id to the selection, or removes it if it is already there.
+   *
+   * This is what Ctrl-click does. Re-picking an already-selected element
+   * promotes it to primary rather than doing nothing, so the inspector
+   * follows the thing you just clicked.
+   *
+   * @param {string} id
+   */
+  toggleSelected(id) {
+    if (!nodeAt(this.doc, id)) {
+      return;
+    }
+    const at = this._selection.indexOf(id);
+    if (at >= 0) {
+      this._selection.splice(at, 1);
+    } else {
+      this._selection.push(id);
+    }
+  }
+
+  /**
+   * The primary selection — the most recently picked element.
+   *
+   * Callers that only handle one element at a time read this and keep
+   * working unchanged; the ones that mean "everything selected" ask for
+   * {@link Engine#selectedIds}.
+   *
+   * @returns {string | null}
+   */
   selection() {
-    return this._selection;
+    return this._selection.length > 0 ? this._selection[this._selection.length - 1] : null;
+  }
+
+  /** @returns {string[]} every selected id, in the order they were picked */
+  selectedIds() {
+    return [...this._selection];
+  }
+
+  /** @returns {number} */
+  selectionSize() {
+    return this._selection.length;
+  }
+
+  /**
+   * @param {string} id
+   * @returns {boolean}
+   */
+  isSelected(id) {
+    return this._selection.includes(id);
   }
 
   // ============================================================ geometry ===
@@ -413,7 +522,7 @@ export class Engine {
   resetProject() {
     this.checkpoint();
     clearDocument(this.doc);
-    this._selection = null;
+    this._selection = [];
   }
 
   // ============================================================= private ===
@@ -439,11 +548,9 @@ export class Engine {
     }
   }
 
-  /** Drops a selection pointing at a node that no longer exists. */
+  /** Drops any selected id whose node no longer exists. */
   _validateSelection() {
-    if (this._selection && !nodeAt(this.doc, this._selection)) {
-      this._selection = null;
-    }
+    this._selection = this._selection.filter((id) => nodeAt(this.doc, id));
   }
 }
 

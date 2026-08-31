@@ -253,6 +253,27 @@ mystery about why things got slower.
 
 ## 3. The browser layer (`js/`)
 
+### Selection
+
+The engine holds selection as an **ordered array**, not a single id. The last
+entry is the _primary_: the one the inspector reads, the one that gets resize
+handles, and the one a group drag takes its delta from. `selection()` returns
+it, so every caller that only ever handled one element kept working when the
+array arrived; the ones that mean "everything selected" ask for
+`selectedIds()`.
+
+Two rules keep it honest:
+
+- **Only the engine decides what is selected.** `app._syncSelectionFromEngine`
+  is the one place `state.selection` is assigned, because the engine drops ids
+  whose nodes are gone and is therefore the only thing that knows what survived
+  a delete or an undo.
+- **A batch is one undo step.** `deleteElements` and `duplicateElements` exist
+  precisely because looping over the single-element versions would take one
+  checkpoint each, and putting four deleted elements back would need four
+  presses of Ctrl+Z. Batching lives next to `_guard`, which is the only code
+  that knows where an undo boundary goes.
+
 ### `core/app.js` — the single caller
 
 Every panel talks to `app`; only `app` talks to the engine. It owns:
@@ -315,6 +336,33 @@ Selection outlines, resize handles, drop highlights and snap guides are plain
 absolutely-positioned `<div>`s. During a drag the canvas paints a _predicted_
 rect immediately and lets the frame's next measurement correct it, so the
 outline never lags the pointer.
+
+### What a drag means depends on who does the layout
+
+A drag on an absolutely-positioned element moves it: the canvas writes `x`/`y`
+and paints a _predicted_ rect immediately, letting the frame's next measurement
+correct it.
+
+A drag on a child of a `row`, `column` or `grid` cannot do that. Its parent
+places it, and its own `x`/`y` are never compiled — writing them moves nothing.
+There, a drag means **reorder**: the canvas shows an insertion line between
+siblings and commits a single `reparent` on release. Nothing is mutated during
+the drag, so one gesture is one undo step and no frame pays for a recompile.
+
+Getting this wrong is what a flicker looks like. Two bugs produced one:
+
+- predicting a position for an element whose parent ignores it, so the outline
+  jumped to a coordinate it would never occupy and snapped back on the next
+  measurement; and
+- `_drawMarkers` taking an "override the primary's rect" argument, when the
+  element under the pointer is not necessarily the primary selection — pick
+  three things, then grab the first.
+
+Both are closed the same way: `_drawMarkers` takes no arguments, and every
+rect comes from one id-keyed lookup — `_predicted` while a gesture runs,
+`app.rectOf` otherwise. The cache has to outlive the frame that filled it,
+because moving an element makes the preview frame re-measure and fire
+`geometry`, which repaints markers that know nothing about the drag.
 
 ### Dragging is pointer-based, not HTML5 drag-and-drop
 
@@ -414,7 +462,11 @@ change.
 
 Worth knowing before you build on this:
 
-- **Single selection.** No marquee, no multi-select transforms.
+- **No marquee selection, and no group resize.** Several elements can be
+  selected with Ctrl-click and moved, deleted, duplicated or restyled as one,
+  but there is no rubber-band select and no bounding box to scale a group by.
+  Group resize needs rules about which edge scales what, and half of those
+  rules would be worse than none.
 - **One page per project.** The engine has one root; multi-page would mean a
   document collection above it.
 - **No responsive breakpoints.** Styles are unconditional; media queries can

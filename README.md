@@ -70,23 +70,24 @@ The editor itself has **zero** runtime dependencies.
 
 ## What you can do in the editor
 
-| Action                       | How                                                                                                               |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Add an element               | Drag a row from the left panel onto the canvas, double-click it, or press its letter — the palette shows each one |
-| Switch left panel            | The icon rail — Elements or Layers                                                                                |
-| Change canvas width          | The device buttons in the canvas toolbar, or type a width                                                         |
-| Select                       | Click it on the canvas, or click its row in **Layers**                                                            |
-| Move                         | Drag it. `Shift` constrains to one axis, `Ctrl`/`⌘` disables snapping                                             |
-| Duplicate while dragging     | Hold `Alt` and start the drag                                                                                     |
-| Resize                       | Drag any of the eight handles. `Shift` locks the aspect ratio on corners                                          |
-| Nest inside a container      | Drag over it — the green outline shows the receiving container                                                    |
-| Reorder / reparent precisely | Drag rows in the **Layers** tree (above / into / below zones)                                                     |
-| Edit text                    | Double-click the element. `Enter` commits, `Escape` cancels                                                       |
-| Style                        | Everything in the right rail, including a raw **Custom CSS** escape hatch                                         |
-| Change the page itself       | Deselect (`Escape`) — the inspector switches to document settings                                                 |
-| Preview for real             | **Preview** in the top bar, or `Ctrl+P`                                                                           |
-| Ship it                      | **Export HTML** — one self-contained file, no runtime, no dependencies                                            |
-| Keep working later           | **Save** writes a `.devlove.json`; the editor also autosaves to `localStorage`                                    |
+| Action                       | How                                                                                                                              |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Add an element               | Drag a row from the left panel onto the canvas, double-click it, or press its letter — the palette shows each one                |
+| Switch left panel            | The icon rail — Elements or Layers                                                                                               |
+| Change canvas width          | The device buttons in the canvas toolbar, or type a width                                                                        |
+| Select                       | Click it on the canvas, or click its row in **Layers**                                                                           |
+| Select several               | `Ctrl`/`⌘`-click each one, on the canvas or in **Layers**. `Ctrl+A` selects every sibling. Edits, moves and deletes apply to all |
+| Move                         | Drag it. `Shift` constrains to one axis, `Ctrl`/`⌘` disables snapping                                                            |
+| Duplicate while dragging     | Hold `Alt` and start the drag                                                                                                    |
+| Resize                       | Drag any of the eight handles. `Shift` locks the aspect ratio on corners                                                         |
+| Nest inside a container      | Drag over it — the green outline shows the receiving container                                                                   |
+| Reorder / reparent precisely | Drag rows in the **Layers** tree (above / into / below zones)                                                                    |
+| Edit text                    | Double-click the element. `Enter` commits, `Escape` cancels                                                                      |
+| Style                        | Everything in the right rail, including a raw **Custom CSS** escape hatch                                                        |
+| Change the page itself       | Deselect (`Escape`) — the inspector switches to document settings                                                                |
+| Preview for real             | **Preview** in the top bar, or `Ctrl+P`                                                                                          |
+| Ship it                      | **Export HTML** — one self-contained file, no runtime, no dependencies                                                           |
+| Keep working later           | **Save** writes a `.devlove.json`; the editor also autosaves to `localStorage`                                                   |
 
 ### What you can build with
 
@@ -144,12 +145,12 @@ any declaration and applies it to that element alone.
 The **Templates** panel in the icon rail carries four documents, each built
 from the same elements you have:
 
-| Template            | What it is                                                           |
-| ------------------- | -------------------------------------------------------------------- |
-| Developer portfolio | Hero, stack, a table of projects, and a working contact form         |
-| SaaS landing page   | Dark product page: features, pricing comparison, FAQ, sign-up        |
-| Documentation       | Sidebar of anchors beside an article with code and a reference table |
-| Blank page          | An empty canvas with the page set up and nothing on it               |
+| Template            | What it is                                                             |
+| ------------------- | ---------------------------------------------------------------------- |
+| Developer portfolio | Hero, a skills reference, a projects table, and a working contact form |
+| SaaS landing page   | Dark product page: features, pricing comparison, FAQ, sign-up          |
+| Documentation       | Sidebar of anchors beside an article with code and a reference table   |
+| Blank page          | An empty canvas with the page set up and nothing on it                 |
 
 Every one has a working navigation bar whose links scroll to real anchors, so
 hitting **Preview** shows you a page that behaves, not a picture of one.
@@ -183,6 +184,7 @@ boundaries, editing that one file retints the entire tool.
 | `Ctrl+P`                          | Toggle preview                                                        |
 | `Ctrl+0`, `Ctrl+±`, `Ctrl+scroll` | Zoom                                                                  |
 | `Escape`                          | Deselect, or cancel a drag                                            |
+| `Ctrl+A`                          | Select every sibling of the selection                                 |
 | A single letter                   | Add that element — the letter is shown beside its name in the palette |
 
 Bindings live in one table in [`js/core/shortcuts.js`](js/core/shortcuts.js).

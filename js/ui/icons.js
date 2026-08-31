@@ -40,6 +40,11 @@ export const GLYPHS = Object.freeze({
     '<path d="M2 3h12M2 13h12"/><path d="M8 5.5v5"/><path d="M6.2 7 8 5.2 9.8 7M6.2 9 8 10.8 9.8 9"/>',
   textarea: '<rect x="1.5" y="2.5" width="13" height="11"/><path d="M4 5.5h8M4 8h8M4 10.5h4.5"/>',
   label: '<path d="M2.5 4h11"/><path d="M2.5 8h7"/><path d="M2.5 12h4"/>',
+  // A page with a header band and a sidebar — a layout, not a grid of
+  // squares. Deliberately unlike the `grid` glyph, which is an element.
+  templates:
+    '<rect x="1.5" y="2.5" width="13" height="11"/><path d="M1.5 5.8h13"/>' +
+    '<path d="M6.2 5.8v7.7"/>',
   form:
     '<rect x="1.5" y="2.5" width="13" height="11"/><path d="M4 5.5h8M4 8h8"/>' +
     '<rect x="4" y="10" width="4.5" height="2"/>',

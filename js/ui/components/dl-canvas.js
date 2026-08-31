@@ -229,11 +229,39 @@ export class DlCanvas extends PanelElement {
     .marker[data-on="true"] { display: block; }
 
     .marker--hover { outline: 1px solid var(--marker-hover); }
+
+    /* Where a flow child will land. A line between siblings, not a box around
+       one, because in a row or a column the question is "before or after",
+       not "inside what". */
+    .insert {
+      position: absolute;
+      display: none;
+      background: var(--marker-select);
+      pointer-events: none;
+    }
+    .insert[data-on="true"] { display: block; }
     .marker--drop {
       outline: 1px solid var(--marker-drop);
       background: rgba(137, 209, 133, 0.1);
     }
     .marker--select { outline: 1.5px solid var(--marker-select); }
+
+    /* With more than one element selected there is no single box to resize,
+       so the handles go away. Group resize is a different feature with its own
+       rules about which edge scales what, and half-implementing it here would
+       be worse than not offering it. */
+    .marker--select[data-multi="true"] .handle { display: none; }
+
+    /* Outlines for the selected elements that are not the primary one. Thinner
+       and unhandled: they follow the primary, they are not the thing being
+       manipulated. */
+    .others { position: absolute; inset: 0; pointer-events: none; }
+    .others__box {
+      position: absolute;
+      box-sizing: border-box;
+      outline: 1px solid var(--marker-select);
+      background: rgba(0, 120, 212, 0.06);
+    }
 
     /* Square handles, matching every other corner in the tool. They are the
        one place a filled accent is still right: a resize handle has to be
@@ -374,6 +402,8 @@ export class DlCanvas extends PanelElement {
               <div class="overlay" id="overlay">
                 <div class="marker marker--drop" id="dropMarker"></div>
                 <div class="marker marker--hover" id="hoverMarker"></div>
+                <div class="others" id="selectOthers"></div>
+                <div class="insert" id="insertLine"></div>
                 <div class="marker marker--select" id="selectMarker">
                   ${HANDLES.map((h) => `<span class="handle" data-h="${h}"></span>`).join('')}
                 </div>
@@ -419,6 +449,14 @@ export class DlCanvas extends PanelElement {
     this._wirePointer();
     this._wireExternalDrag();
     this._wireTextEditor();
+
+    /**
+     * Rects predicted by the gesture in progress, keyed by node id.
+     * `null` when nothing is being dragged, which is when the frame's own
+     * measurements are the truth.
+     * @type {Record<string, number[]> | null}
+     */
+    this._predicted = null;
 
     this.listen(['ready', 'document', 'page'], () => {
       this._readPage();
@@ -753,14 +791,22 @@ export class DlCanvas extends PanelElement {
     const point = this._toPagePoint(event);
     const handle = /** @type {HTMLElement} */ (event.target).closest('[data-h]');
 
-    if (handle && app.state.selection) {
+    // Handles only exist for a single selection, so this can only ever be the
+    // primary — but check, because a stale handle could survive one frame.
+    if (handle && app.state.selection && app.state.selected.length === 1) {
       this._startResize(app.state.selection, handle.getAttribute('data-h'), point, event);
       return;
     }
 
+    const additive = event.ctrlKey || event.metaKey;
     const hit = app.engine.hitTest(point.x, point.y);
+
     if (!hit) {
-      app.select(null);
+      // Ctrl-clicking empty space is a miss, not "deselect everything" — it
+      // would undo a careful selection with one slip of the pointer.
+      if (!additive) {
+        app.select(null);
+      }
       return;
     }
 
@@ -768,7 +814,22 @@ export class DlCanvas extends PanelElement {
     if (!node) {
       return;
     }
-    app.select(hit);
+
+    if (additive) {
+      // Toggle and stop. Adding to a selection and starting to drag it in the
+      // same gesture makes it far too easy to nudge something by accident
+      // while you are still choosing what to move.
+      app.toggleSelection(hit);
+      const count = app.state.selected.length;
+      app.setStatus(count === 0 ? 'Nothing selected' : `${count} selected`, 'muted');
+      return;
+    }
+
+    // Clicking something already in the selection keeps the selection, so a
+    // drag carries the whole group. Clicking anything else replaces it.
+    if (!app.isSelected(hit)) {
+      app.select(hit);
+    }
 
     if (node.locked) {
       app.setStatus('This layer is locked', 'muted');
@@ -788,7 +849,75 @@ export class DlCanvas extends PanelElement {
       parentId: node.parent || 'root',
       duplicate: event.altKey,
       guides: null,
+      /** The rest of the selection, moved by the same delta. */
+      followers: this._collectFollowers(hit),
+      /**
+       * Whether the parent positions this element itself.
+       *
+       * A child of a row, column or grid is placed by its parent, and its own
+       * `x`/`y` are never compiled. Dragging one therefore cannot move it —
+       * the only thing a drag can mean there is "put it somewhere else in the
+       * order", which is what `_updateFlowMove` does.
+       */
+      flow: this._parentFlows(node),
+      dropIndex: -1,
     };
+  }
+
+  /**
+   * @param {any} node
+   * @returns {boolean} whether this node's parent lays out its children
+   */
+  _parentFlows(node) {
+    const parent = app.getNode(node.parent || 'root');
+    return Boolean(parent) && parent.layout !== 'absolute';
+  }
+
+  /**
+   * The other selected elements a drag should carry, with where they started.
+   *
+   * Locked ones are left out — a lock has to mean something during a group
+   * drag too — as are any whose ancestor is also being dragged, since moving
+   * a container already moves its children.
+   *
+   * @param {string} primaryId
+   * @returns {Array<{id: string, startX: number, startY: number, parentId: string, width: number, height: number}>}
+   */
+  _collectFollowers(primaryId) {
+    const selected = new Set(app.state.selected);
+    if (selected.size < 2) {
+      return [];
+    }
+
+    /** @param {any} node */
+    const hasSelectedAncestor = (node) => {
+      for (let current = node; current && current.parent; current = app.getNode(current.parent)) {
+        if (selected.has(current.parent)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const followers = [];
+    for (const id of selected) {
+      if (id === primaryId || id === 'root') {
+        continue;
+      }
+      const node = app.getNode(id);
+      if (!node || node.locked || hasSelectedAncestor(node)) {
+        continue;
+      }
+      followers.push({
+        id,
+        startX: node.x,
+        startY: node.y,
+        width: node.width,
+        height: node.height,
+        parentId: node.parent || 'root',
+      });
+    }
+    return followers;
   }
 
   /**
@@ -846,6 +975,8 @@ export class DlCanvas extends PanelElement {
   }
 
   _endGesture() {
+    // Measured rects are authoritative again the moment the gesture ends.
+    this._predicted = null;
     if (this._gesture && this._gesture.pointerId !== undefined) {
       try {
         this.overlay.releasePointerCapture(this._gesture.pointerId);
@@ -856,6 +987,7 @@ export class DlCanvas extends PanelElement {
     this._gesture = null;
     this.overlay.removeAttribute('data-gesture');
     this._setMarker('#dropMarker', null);
+    this._setMarker('#insertLine', null);
     this._hideGuides();
     this._drawMarkers();
   }
@@ -868,15 +1000,23 @@ export class DlCanvas extends PanelElement {
     this.overlay.setAttribute('data-gesture', 'move');
 
     if (gesture.duplicate) {
-      app.duplicateElement(gesture.id);
+      // Alt-drag copies everything selected, then drags the copies.
+      app.duplicateSelection();
       const clone = app.state.selection;
       if (clone && clone !== gesture.id) {
         const node = app.getNode(clone);
         gesture.id = clone;
         if (node) {
+          // `duplicateElement` offsets a copy by 24px; rebase the gesture so
+          // the copy sits under the pointer rather than jumping away from it.
           gesture.startX = node.x - 24;
           gesture.startY = node.y - 24;
         }
+        gesture.followers = this._collectFollowers(clone).map((follower) => ({
+          ...follower,
+          startX: follower.startX - 24,
+          startY: follower.startY - 24,
+        }));
       }
       gesture.duplicate = false;
     } else {
@@ -892,6 +1032,10 @@ export class DlCanvas extends PanelElement {
    */
   _updateMove(point, event) {
     const gesture = this._gesture;
+    if (gesture.flow) {
+      this._updateFlowMove(point);
+      return;
+    }
     let nextX = gesture.startX + (point.x - gesture.origin.x);
     let nextY = gesture.startY + (point.y - gesture.origin.y);
 
@@ -910,14 +1054,131 @@ export class DlCanvas extends PanelElement {
         : this._applySnapping(nextX, nextY, gesture);
 
     app.moveElement(gesture.id, Math.round(snapped.x), Math.round(snapped.y));
+
+    // Followers take the delta the primary actually ended up with, snapping
+    // included, so the group keeps its shape.
+    const dx = snapped.x - gesture.startX;
+    const dy = snapped.y - gesture.startY;
+    /** @type {Record<string, number[]>} */
+    const predicted = {};
+    for (const follower of gesture.followers) {
+      const x = Math.round(follower.startX + dx);
+      const y = Math.round(follower.startY + dy);
+      app.moveElement(follower.id, x, y);
+      predicted[follower.id] = this._predictRect(follower, x, y, follower.width, follower.height);
+    }
+
     this._paintGuides(gesture.parentId, snapped.guideX, snapped.guideY);
-    this._previewDropTarget(point, gesture.id, gesture.parentId);
-    this._drawMarkers(this._predictRect(gesture, snapped.x, snapped.y));
+    // Reparenting a whole group into a different container is not something a
+    // single drop point can describe, so the drop router only runs for one.
+    if (gesture.followers.length === 0) {
+      this._previewDropTarget(point, gesture.id, gesture.parentId);
+    }
+    predicted[gesture.id] = this._predictRect(gesture, snapped.x, snapped.y);
+    this._rememberPredicted(predicted);
+    this._drawMarkers();
+  }
+
+  /**
+   * Dragging inside a row, column or grid: work out where in the order the
+   * element would land, and show a line there.
+   *
+   * Nothing is mutated until the pointer comes up. Reordering on every frame
+   * would put a checkpoint and a full recompile behind each pointer move, and
+   * an undo stack with forty entries in it for one drag.
+   *
+   * @param {{x: number, y: number}} point
+   */
+  _updateFlowMove(point) {
+    const gesture = this._gesture;
+    const parent = app.getNode(gesture.parentId);
+    if (!parent) {
+      return;
+    }
+
+    const siblings = parent.children;
+    const vertical = parent.layout !== 'row';
+    const along = vertical ? point.y : point.x;
+
+    // The first sibling whose middle the pointer has not yet passed.
+    let index = siblings.length;
+    for (let at = 0; at < siblings.length; at += 1) {
+      const rect = app.rectOf(siblings[at]);
+      if (!rect) {
+        continue;
+      }
+      const middle = vertical ? rect[1] + rect[3] / 2 : rect[0] + rect[2] / 2;
+      if (along < middle) {
+        index = at;
+        break;
+      }
+    }
+
+    gesture.dropIndex = index;
+    this._paintInsertLine(parent, siblings, index, vertical);
+    this._drawMarkers();
+  }
+
+  /**
+   * @param {any} parent
+   * @param {string[]} siblings
+   * @param {number} index insertion point, `siblings.length` meaning "at the end"
+   * @param {boolean} vertical
+   */
+  _paintInsertLine(parent, siblings, index, vertical) {
+    const line = /** @type {HTMLElement} */ (this.$('#insertLine'));
+    const parentRect = app.rectOf(parent.id);
+    if (!parentRect) {
+      line.setAttribute('data-on', 'false');
+      return;
+    }
+
+    // Before a sibling, or after the last one.
+    const anchor = index < siblings.length ? app.rectOf(siblings[index]) : null;
+    const trailing = siblings.length > 0 ? app.rectOf(siblings[siblings.length - 1]) : null;
+
+    let x;
+    let y;
+    if (vertical) {
+      y = anchor ? anchor[1] : trailing ? trailing[1] + trailing[3] : parentRect[1];
+      x = parentRect[0];
+      line.style.width = `${parentRect[2]}px`;
+      line.style.height = '2px';
+    } else {
+      x = anchor ? anchor[0] : trailing ? trailing[0] + trailing[2] : parentRect[0];
+      y = parentRect[1];
+      line.style.width = '2px';
+      line.style.height = `${parentRect[3]}px`;
+    }
+    line.style.left = `${x - 1}px`;
+    line.style.top = `${y - 1}px`;
+    line.setAttribute('data-on', 'true');
   }
 
   /** @param {{x: number, y: number}} point */
   _commitMove(point) {
     const gesture = this._gesture;
+
+    if (gesture.flow) {
+      this._setMarker('#insertLine', null);
+      const parent = app.getNode(gesture.parentId);
+      const from = parent ? parent.children.indexOf(gesture.id) : -1;
+      let to = gesture.dropIndex;
+      // Removing the element first shifts everything after it down one.
+      if (to > from && from >= 0) {
+        to -= 1;
+      }
+      if (from >= 0 && to >= 0 && to !== from) {
+        app.reparent(gesture.id, gesture.parentId, to);
+        app.setStatus('Reordered');
+      }
+      return;
+    }
+
+    if (gesture.followers.length > 0) {
+      // A group drag moves; it does not reparent. See `_updateMove`.
+      return;
+    }
     const targetParent = app.engine.dropTarget(point.x, point.y, gesture.id);
     this._setMarker('#dropMarker', null);
 
@@ -1031,7 +1292,8 @@ export class DlCanvas extends PanelElement {
     if (x !== gesture.startX || y !== gesture.startY) {
       app.moveElement(gesture.id, Math.round(x), Math.round(y));
     }
-    this._drawMarkers(this._predictRect(gesture, x, y, width, height));
+    this._rememberPredicted({ [gesture.id]: this._predictRect(gesture, x, y, width, height) });
+    this._drawMarkers();
   }
 
   // ---------------------------------------------------------- snapping ----
@@ -1134,19 +1396,51 @@ export class DlCanvas extends PanelElement {
     return [parentRect[0] + x, parentRect[1] + y, width, height];
   }
 
-  /** @param {number[] | null} [selectionOverride] */
-  _drawMarkers(selectionOverride = null) {
+  /**
+   * Paints the selection outlines, the hover outline, and the label and size
+   * badge on the primary.
+   *
+   * Takes no arguments on purpose. Every rect comes from one lookup —
+   * `this._predicted` while a gesture is running, `app.rectOf` otherwise —
+   * keyed by node id. Both halves of that matter, and each was a bug:
+   *
+   * 1. **Predicted rects have to outlive the frame that produced them.**
+   *    Moving an element posts a style patch into the preview frame, which
+   *    re-measures and fires `geometry`, which repaints these markers. That
+   *    repaint knows nothing about the drag, so without the cache it fell back
+   *    to a measurement one or two frames old and the outlines alternated
+   *    between predicted and measured every frame.
+   * 2. **The lookup has to be by id.** The element under the pointer is not
+   *    necessarily the primary selection — select three things, then grab the
+   *    first — so a single "override the primary's rect" argument painted one
+   *    element's outline at another element's position.
+   */
+  _drawMarkers() {
     const selection = app.state.selection;
+    const selected = app.state.selected;
     const hover = app.state.hover;
 
-    const selectionRect = selectionOverride || (selection ? app.rectOf(selection) : null);
+    /** @param {string} id */
+    const rectOf = (id) => (this._predicted && this._predicted[id]) || app.rectOf(id);
+
+    const selectionRect = selection ? rectOf(selection) : null;
+    const marker = /** @type {HTMLElement} */ (this.$('#selectMarker'));
     this._setMarker('#selectMarker', selectionRect);
+    marker.setAttribute('data-multi', String(selected.length > 1));
+
+    this._drawOtherOutlines(
+      selected
+        .filter((id) => id !== selection)
+        .map(rectOf)
+        .filter(Boolean)
+    );
 
     const tag = /** @type {HTMLElement} */ (this.$('#selectTag'));
     const badge = /** @type {HTMLElement} */ (this.$('#sizeBadge'));
     if (selectionRect && selection) {
       const node = app.getNode(selection);
-      tag.textContent = node ? node.name : selection;
+      const name = node ? node.name : selection;
+      tag.textContent = selected.length > 1 ? `${name}  +${selected.length - 1}` : name;
       tag.style.left = `${selectionRect[0]}px`;
       tag.style.top = `${selectionRect[1]}px`;
       tag.setAttribute('data-on', 'true');
@@ -1160,8 +1454,50 @@ export class DlCanvas extends PanelElement {
       badge.setAttribute('data-on', 'false');
     }
 
-    const hoverRect = hover && hover !== selection ? app.rectOf(hover) : null;
+    const hoverRect = hover && !selected.includes(hover) ? app.rectOf(hover) : null;
     this._setMarker('#hoverMarker', hoverRect);
+  }
+
+  /**
+   * Holds on to the rects a gesture just predicted, so a repaint triggered by
+   * anything else during that gesture draws the same thing. Cleared when the
+   * gesture ends.
+   *
+   * @param {Record<string, number[]>} rects
+   */
+  _rememberPredicted(rects) {
+    this._predicted = rects;
+  }
+
+  /**
+   * Draws one outline per non-primary selection.
+   *
+   * The boxes are pooled rather than rebuilt: this runs on every frame of a
+   * group drag, and churning the DOM sixty times a second to draw four
+   * rectangles is a waste of a frame budget that the drag needs.
+   *
+   * @param {number[][]} rects
+   */
+  _drawOtherOutlines(rects) {
+    const layer = /** @type {HTMLElement} */ (this.$('#selectOthers'));
+    while (layer.childElementCount < rects.length) {
+      const box = document.createElement('div');
+      box.className = 'others__box';
+      layer.append(box);
+    }
+    for (let index = 0; index < layer.childElementCount; index += 1) {
+      const box = /** @type {HTMLElement} */ (layer.children[index]);
+      const rect = rects[index];
+      if (!rect) {
+        box.style.display = 'none';
+        continue;
+      }
+      box.style.display = 'block';
+      box.style.left = `${rect[0]}px`;
+      box.style.top = `${rect[1]}px`;
+      box.style.width = `${rect[2]}px`;
+      box.style.height = `${rect[3]}px`;
+    }
   }
 
   /**

@@ -29,19 +29,24 @@ export const BINDINGS = Object.freeze([
   {
     keys: 'ctrl+d',
     description: 'Duplicate selection',
-    run: () => app.state.selection && app.duplicateElement(app.state.selection),
+    run: () => app.duplicateSelection(),
   },
   {
     keys: 'delete',
     description: 'Delete selection',
-    run: () => app.state.selection && app.removeElement(app.state.selection),
+    run: () => app.removeSelection(),
   },
   {
     keys: 'backspace',
     description: 'Delete selection',
-    run: () => app.state.selection && app.removeElement(app.state.selection),
+    run: () => app.removeSelection(),
   },
   { keys: 'escape', description: 'Clear selection', run: () => app.select(null) },
+  {
+    keys: 'ctrl+a',
+    description: 'Select all siblings',
+    run: () => app.selectSiblings(),
+  },
   { keys: 'ctrl+p', description: 'Toggle preview', run: () => app.toggleMode() },
   { keys: 'ctrl+0', description: 'Reset zoom', run: () => app.setZoom(1) },
   { keys: 'ctrl+=', description: 'Zoom in', run: () => app.zoomBy(1.2) },
@@ -70,12 +75,12 @@ export const BINDINGS = Object.freeze([
   {
     keys: 'ctrl+]',
     description: 'Bring forward',
-    run: () => app.state.selection && app.reorder(app.state.selection, 1),
+    run: () => app.reorderSelection(1),
   },
   {
     keys: 'ctrl+[',
     description: 'Send backward',
-    run: () => app.state.selection && app.reorder(app.state.selection, -1),
+    run: () => app.reorderSelection(-1),
   },
 ]);
 

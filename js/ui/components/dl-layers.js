@@ -207,11 +207,14 @@ export class DlLayers extends PanelElement {
   }
 
   _syncSelection() {
-    const selected = app.state.selection;
+    const selected = app.state.selected;
+    const primary = app.state.selection;
     for (const row of this.$$('.row')) {
-      const isSelected = row.getAttribute('data-id') === selected;
-      row.setAttribute('data-selected', String(isSelected));
-      if (isSelected) {
+      const id = row.getAttribute('data-id');
+      row.setAttribute('data-selected', String(selected.includes(id)));
+      // Only the primary scrolls into view. Scrolling for every row of a
+      // multi-selection would fight itself and land on whichever was last.
+      if (id === primary) {
         row.scrollIntoView({ block: 'nearest' });
       }
     }
@@ -276,7 +279,13 @@ export class DlLayers extends PanelElement {
       this._render();
       return;
     }
-    app.select(id === 'root' ? null : id);
+    const picked = id === 'root' ? null : id;
+    // Ctrl-click adds to the selection, the same as on the canvas.
+    if (picked && (event.ctrlKey || event.metaKey)) {
+      app.toggleSelection(picked);
+      return;
+    }
+    app.select(picked);
   }
 
   /** @param {MouseEvent} event */

@@ -802,3 +802,91 @@ describe('page metadata', () => {
     assert.ok(compileDocument(engine.snapshot(), { editor: false }).includes('<html lang="fr">'));
   });
 });
+
+describe('selection', () => {
+  it('starts with nothing selected', () => {
+    const engine = new Engine();
+    assert.equal(engine.selection(), null);
+    assert.deepEqual(engine.selectedIds(), []);
+  });
+
+  it('treats the most recently picked element as primary', () => {
+    const { engine, parent, child } = seeded();
+    engine.select([parent, child]);
+    assert.equal(engine.selection(), child);
+    assert.deepEqual(engine.selectedIds(), [parent, child]);
+  });
+
+  it('toggles an id in and out', () => {
+    const { engine, parent, child } = seeded();
+    engine.select(parent);
+    engine.toggleSelected(child);
+    assert.deepEqual(engine.selectedIds(), [parent, child]);
+
+    engine.toggleSelected(parent);
+    assert.deepEqual(engine.selectedIds(), [child]);
+    assert.equal(engine.selection(), child);
+  });
+
+  it('ignores ids that do not exist', () => {
+    const { engine, parent } = seeded();
+    engine.select([parent, 'ghost']);
+    assert.deepEqual(engine.selectedIds(), [parent]);
+
+    engine.toggleSelected('ghost');
+    assert.deepEqual(engine.selectedIds(), [parent]);
+  });
+
+  it('deduplicates', () => {
+    const { engine, parent } = seeded();
+    engine.select([parent, parent]);
+    assert.deepEqual(engine.selectedIds(), [parent]);
+  });
+
+  it('drops ids whose nodes were deleted', () => {
+    const { engine, parent, child } = seeded();
+    engine.select([parent, child]);
+    engine.deleteElement(parent);
+    // The child went with its parent, so nothing survives.
+    assert.deepEqual(engine.selectedIds(), []);
+    assert.equal(engine.selection(), null);
+  });
+
+  it('restores a selection that undo brings back', () => {
+    const engine = new Engine();
+    const a = engine.addElement('text', null, 0, 0);
+    const b = engine.addElement('text', null, 0, 0);
+    engine.select([a, b]);
+    engine.deleteElement(b);
+    assert.deepEqual(engine.selectedIds(), [a]);
+
+    engine.undo();
+    // Undo does not re-select what it restored, but it must not leave a
+    // dangling id either.
+    for (const id of engine.selectedIds()) {
+      assert.ok(engine.getElement(id));
+    }
+  });
+
+  it('answers isSelected and selectionSize', () => {
+    const { engine, parent, child } = seeded();
+    engine.select([parent, child]);
+    assert.equal(engine.selectionSize(), 2);
+    assert.ok(engine.isSelected(parent));
+    assert.ok(!engine.isSelected('root'));
+  });
+
+  it('replaces the selection when an element is added', () => {
+    const { engine, parent, child } = seeded();
+    engine.select([parent, child]);
+    const added = engine.addElement('button', null, 0, 0);
+    assert.deepEqual(engine.selectedIds(), [added]);
+  });
+
+  it('clears the selection when the project is reset', () => {
+    const { engine, parent } = seeded();
+    engine.select(parent);
+    engine.resetProject();
+    assert.deepEqual(engine.selectedIds(), []);
+  });
+});

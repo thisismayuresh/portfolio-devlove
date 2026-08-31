@@ -36,8 +36,8 @@ export const TEMPLATES = Object.freeze([
   {
     id: 'portfolio',
     name: 'Developer portfolio',
-    summary: 'Hero, stack, a table of projects, and a working contact form.',
-    tags: ['Nav', 'Table', 'Code', 'Form'],
+    summary: 'Hero, a skills reference, a projects table, and a working contact form.',
+    tags: ['Nav', 'Tables', 'Code', 'Form'],
     build: portfolio.build,
   },
   {
@@ -80,6 +80,45 @@ export const DEFAULT_TEMPLATE_ID = 'portfolio';
  */
 export function templateById(id) {
   return TEMPLATES.find((template) => template.id === id);
+}
+
+/**
+ * Replays a template into an engine.
+ *
+ * Lives here rather than in `core/app.js` because three callers need it and
+ * only one of them is the app: the editor applies a template to the live
+ * document, the Templates panel applies one to a throwaway engine to render a
+ * preview, and the tests apply every template to check it still builds. One
+ * copy means a preview cannot drift from what applying it actually produces.
+ *
+ * The caller decides the undo boundary — `resetProject` below takes the
+ * checkpoint, and everything after it lands in the same step.
+ *
+ * @param {any} engine an `Engine` instance
+ * @param {{page?: Record<string, any>, nodes: any[]}} template
+ */
+export function applyTo(engine, template) {
+  engine.resetProject();
+  for (const [key, value] of Object.entries(template.page || {})) {
+    engine.updatePage(key, String(value));
+  }
+  // Templates refer to their own nodes by `ref`; map those to the real ids as
+  // they are created.
+  /** @type {Record<string, string>} */
+  const aliases = Object.create(null);
+  for (const spec of template.nodes) {
+    const parent = spec.parent ? aliases[spec.parent] || spec.parent : 'root';
+    const id = engine.addElementWith(
+      spec.kind,
+      parent,
+      Number(spec.x) || 0,
+      Number(spec.y) || 0,
+      spec.props || {}
+    );
+    if (spec.ref) {
+      aliases[spec.ref] = id;
+    }
+  }
 }
 
 /**

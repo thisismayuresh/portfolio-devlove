@@ -241,7 +241,11 @@ export class DlInspector extends PanelElement {
       <span class="head__icon">${icon(blueprint.icon, 15)}</span>
       <span class="head__text">
         <span class="head__title">${esc(node.name)}</span>
-        <span class="head__sub">${esc(node.kind)} · ${esc(id)}</span>
+        <span class="head__sub">${
+          app.state.selected.length > 1
+            ? `${app.state.selected.length} selected`
+            : `${esc(node.kind)} · ${esc(id)}`
+        }</span>
       </span>
       <span class="head__actions">
         <button class="icon-btn" data-action="backward" title="Send backward (Ctrl+[)">${icon('sendBackward', 15)}</button>
@@ -771,10 +775,10 @@ export class DlInspector extends PanelElement {
       app.setPageProperty(key, value, { live });
       return;
     }
-    const id = app.state.selection;
-    if (id) {
-      app.setProperty(id, key, value, { live });
-    }
+    // Applies to every selected element, not just the one the fields were
+    // rendered from. Selecting four buttons and setting the radius once is the
+    // only reason to have selected four buttons.
+    app.setSelectedProperty(key, value, { live });
   }
 
   /**

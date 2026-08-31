@@ -1,10 +1,14 @@
 /**
- * A MERN developer portfolio.
+ * A computer-science graduate's developer portfolio.
  *
  * The default document, and the one a first-time visitor lands on. It shows
- * every element the palette offers at least once — a table of projects, a
- * highlighted code block, a list of skills, a real contact form — so clicking
+ * every element the palette offers at least once — two reference tables, a
+ * highlighted code block, a list, a quote, a real contact form — so clicking
  * through it doubles as a tour of what the tool can do.
+ *
+ * Skills are listed, not scored. A percentage next to "React — 87%" is a
+ * number nobody can source and nobody believes, and it is the first thing a
+ * reader discounts.
  *
  * Names and addresses are placeholders on `example.com`, which is reserved for
  * exactly this.
@@ -12,7 +16,7 @@
  * @module templates/portfolio
  */
 
-import { LIGHT, band, cardGrid, el, footer, heading, navbar } from './parts.js';
+import { LIGHT, band, el, footer, heading, navbar } from './parts.js';
 
 const T = LIGHT;
 const GUTTER = 160;
@@ -22,11 +26,11 @@ const COLUMN = 960;
 export function build() {
   return {
     page: {
-      title: 'Jordan Ellis — MERN developer',
+      title: 'Mayur K — full-stack engineer',
       description:
-        'Freelance MERN developer. React front ends on Node, Express and MongoDB, with a bias for boring, fast and maintainable.',
+        'Full-stack developer with a computer science background. React and Next.js on Node and NestJS, with the fundamentals underneath — data structures, databases, networks and system design.',
       width: 1280,
-      minHeight: 2760,
+      minHeight: 3100,
       background: T.surface,
       fontFamily: "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif",
     },
@@ -36,8 +40,9 @@ export function build() {
       band('nav', { y: 0, height: 76, name: 'Nav' }),
       ...navbar({
         parent: 'nav',
-        brand: 'jordan ellis',
+        brand: 'Mayur K',
         links: [
+          { label: 'Skills', target: 'skills' },
           { label: 'Work', target: 'work' },
           { label: 'About', target: 'about' },
         ],
@@ -60,14 +65,34 @@ export function build() {
         { name: 'Hero column', width: 540, layout: 'column', gap: 30, padding: 0 },
         { ref: 'hero-col', parent: 'hero', x: GUTTER, y: 92 }
       ),
+      // A greeting, then the headline. Its own element rather than the heading
+      // block's eyebrow: an eyebrow is small uppercase label text, and a
+      // greeting should read like someone talking.
+      el(
+        'text',
+        {
+          name: 'Greeting',
+          width: 540,
+          content: "Hi, I'm Mayur!",
+          // Ink, not the accent. A greeting is the first line someone reads,
+          // and colouring it turns it into a label for the headline instead of
+          // a sentence in its own right. Sized to lead into the headline
+          // rather than compete with it.
+          fontSize: 30,
+          fontWeight: '600',
+          lineHeight: 1.2,
+          letterSpacing: -0.4,
+          color: T.ink,
+        },
+        { parent: 'hero-col' }
+      ),
       ...heading({
         ref: 'hero-head',
         parent: 'hero-col',
-        eyebrow: 'MERN stack developer · Pune, IN',
-        title: 'I build web apps that\nload fast and stay simple.',
-        body: 'Four years shipping React front ends on Node and MongoDB. I care about the boring parts — pagination that works, indexes that exist, and deploys that are not exciting.',
+        title: 'I build web apps\nwith computer science at their core.',
+        body: 'A CS degree and three years shipping production React on Node, from Pune. I care about the parts underneath — the query plan, the cache invalidation, the failure mode you only meet at 3am.',
         width: 540,
-        size: 50,
+        size: 46,
         theme: T,
       }),
       el(
@@ -115,7 +140,7 @@ export function build() {
           borderColor: T.line,
           transition: 160,
           'data.action': 'copy',
-          'data.target': 'jordan@example.com',
+          'data.target': 'mayur@example.com',
         },
         { parent: 'hero-cta' }
       ),
@@ -148,47 +173,55 @@ export function build() {
         { parent: 'hero', x: 720, y: 130 }
       ),
 
-      /* ========================================================== toolbox === */
-      band('toolbox', { y: 597, height: 400, background: T.wash, name: 'Toolbox' }),
+      /* =========================================================== skills === */
+      band('skills', {
+        y: 597,
+        height: 740,
+        background: T.wash,
+        anchor: 'skills',
+        name: 'Skills',
+      }),
       ...heading({
-        ref: 'toolbox-head',
-        parent: 'toolbox',
+        ref: 'skills-head',
+        parent: 'skills',
         x: GUTTER,
-        y: 64,
+        y: 68,
         title: 'What I work with',
-        width: 420,
+        body: 'Grouped by where it sits in the stack, not ranked out of ten — a bar chart of my own opinion of myself is not evidence of anything.',
+        width: 620,
         theme: T,
       }),
-      ...cardGrid({
-        parent: 'toolbox',
-        ref: 'toolbox-grid',
-        x: GUTTER,
-        y: 130,
-        width: COLUMN,
-        columns: 4,
-        items: [
-          {
-            title: 'MongoDB',
-            body: 'Schema design, aggregation pipelines, and indexes that earn their keep.',
-          },
-          {
-            title: 'Express',
-            body: 'REST APIs, auth middleware, and error handling that says what went wrong.',
-          },
-          {
-            title: 'React',
-            body: 'Hooks, React Query, and a hard rule against premature state libraries.',
-          },
-          {
-            title: 'Node.js',
-            body: 'Background jobs, streaming uploads, and a healthy fear of blocking the loop.',
-          },
-        ],
-        theme: T,
-      }),
+      el(
+        'table',
+        {
+          // Same shape as the projects table below: two columns, read as a
+          // reference rather than as decoration.
+          name: 'Skills table',
+          width: COLUMN,
+          fontSize: 15,
+          lineHeight: 1.65,
+          color: T.muted,
+          // `auto` rather than the kind's default `fixed`: the left column
+          // holds two words and the right one holds twelve, and an even split
+          // would waste half the row.
+          'custom.table-layout': 'auto',
+          'data.columns': 'Area | Technologies',
+          'data.rows': [
+            'Frontend | React.js, Next.js, HTML5, CSS3, TailwindCSS, Mantine UI, Material UI, Storybook, Redux, React Query, Jest, Vitest',
+            'Backend | Node.js, NestJS, Express.js, REST APIs, GraphQL, WebSockets, JWT authentication, Webhooks, Apache Kafka, RabbitMQ',
+            'AI integration | LLM APIs (OpenAI, Anthropic), LangChain, RAG pipelines, Embeddings, Vector databases (Pinecone)',
+            'Databases | MongoDB, PostgreSQL, MySQL, Redis',
+            'Cloud & tools | AWS (S3, SES, EC2, RDS), Docker, Kubernetes, CI/CD, Git, GitHub, Stripe, Paystack, Postman',
+            'Languages | JavaScript, TypeScript, Python',
+            'Core computer science | Data structures & algorithms, OOP, DBMS, Operating systems, Computer networks, System design',
+            'Practices | Agile/Scrum, Code reviews, Performance optimisation, API design',
+          ].join('\n'),
+        },
+        { parent: 'skills', x: GUTTER, y: 216 }
+      ),
 
       /* ============================================================= work === */
-      band('work', { y: 997, height: 580, anchor: 'work', name: 'Work' }),
+      band('work', { y: 1337, height: 580, anchor: 'work', name: 'Work' }),
       ...heading({
         ref: 'work-head',
         parent: 'work',
@@ -224,20 +257,20 @@ export function build() {
           fontSize: 17,
           color: T.ink,
           content:
-            'Jordan rewrote our search in a week and it went from four seconds to under two hundred milliseconds. No drama, no rewrite of everything else.',
+            'Mayur rewrote our search in a week and it went from four seconds to under two hundred milliseconds. No drama, no rewrite of everything else.',
         },
         { parent: 'work', x: GUTTER, y: 446 }
       ),
 
       /* ============================================================ about === */
-      band('about', { y: 1577, height: 400, background: T.wash, anchor: 'about', name: 'About' }),
+      band('about', { y: 1917, height: 400, background: T.wash, anchor: 'about', name: 'About' }),
       ...heading({
         ref: 'about-head',
         parent: 'about',
         x: GUTTER,
         y: 68,
         title: 'A bit about me',
-        body: 'I started out fixing a broken WordPress site for a family business and never quite stopped. These days I work mostly on internal tools, where the users are three people who will tell you exactly what is wrong.',
+        body: 'I started out fixing a broken WordPress site for a family business and never quite stopped. A CS degree gave me the vocabulary for what I had been doing by feel — and the habit of reaching for a profiler before a rewrite.',
         width: 440,
         theme: T,
       }),
@@ -246,7 +279,7 @@ export function build() {
         {
           name: 'List heading',
           width: 300,
-          content: 'Also comfortable with',
+          content: 'Fundamentals I lean on',
           fontSize: 13,
           fontWeight: '700',
           color: T.ink,
@@ -264,18 +297,18 @@ export function build() {
           lineHeight: 1.9,
           color: T.muted,
           'data.items': [
-            'TypeScript, and knowing when not to',
-            'NestJS, Docker, a little Kubernetes',
-            'Postgres when documents are the wrong shape',
-            'Playwright, Vitest, and testing the risky parts',
-            'GitHub Actions, Fly.io, Cloudflare',
+            'Algorithms — and knowing when the naive one is fine',
+            'Databases — indexes, query plans, transactions',
+            'Operating systems — processes, memory, why the container died',
+            'Networks — TCP, HTTP/2, TLS, reading a waterfall',
+            'System design — queues and caches, and how each fails',
           ].join('\n'),
         },
         { parent: 'about', x: 660, y: 156 }
       ),
 
       /* ========================================================== contact === */
-      band('contact', { y: 1977, height: 640, anchor: 'contact', name: 'Contact' }),
+      band('contact', { y: 2317, height: 640, anchor: 'contact', name: 'Contact' }),
       ...heading({
         ref: 'contact-head',
         parent: 'contact',
@@ -291,8 +324,8 @@ export function build() {
         {
           name: 'Email link',
           width: 300,
-          content: 'jordan@example.com',
-          href: 'mailto:jordan@example.com',
+          content: 'mayur@example.com',
+          href: 'mailto:mayur@example.com',
           fontSize: 17,
           color: T.ink,
           fontWeight: '600',
@@ -374,7 +407,7 @@ export function build() {
 
       /* =========================================================== footer === */
       ...footer({
-        y: 2617,
+        y: 2957,
         gutter: GUTTER,
         width: COLUMN,
         note: 'Built with devlove. Everything on this page is editable — start anywhere.',

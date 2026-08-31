@@ -23,7 +23,7 @@ export function build() {
       description:
         'Cadence turns merged pull requests into a changelog your customers actually read. Connect a repository and ship your first release note in ten minutes.',
       width: 1280,
-      minHeight: 3200,
+      minHeight: 2940,
       background: T.wash,
       fontFamily: "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif",
     },
@@ -44,7 +44,23 @@ export function build() {
       }),
 
       /* ============================================================= hero === */
-      band('hero', { y: 76, height: 620, background: T.wash, name: 'Hero' }),
+      band('hero', { y: 76, height: 600, background: T.wash, name: 'Hero' }),
+      // The one piece of ornament on the page: a soft wash of the accent
+      // bleeding down from behind the headline. It is a background image, not
+      // an element, so it never gets in the way of anything you drag.
+      el(
+        'section',
+        {
+          name: 'Hero glow',
+          width: 1280,
+          height: 600,
+          background: 'transparent',
+          padding: 0,
+          backgroundImage:
+            'radial-gradient(58% 70% at 22% -10%, rgba(62,207,142,0.16), transparent 68%)',
+        },
+        { parent: 'hero', x: 0, y: 0 }
+      ),
       // One column stack for the whole left-hand side, so the buttons and the
       // trust line follow the copy however long the headline wraps.
       el(
@@ -55,7 +71,7 @@ export function build() {
       ...heading({
         ref: 'hero-head',
         parent: 'hero-col',
-        eyebrow: 'Changelogs on autopilot',
+        eyebrow: 'v2 — now with Slack delivery',
         title: 'Release notes that\nwrite themselves.',
         body: 'Cadence reads your merged pull requests and drafts a changelog in your own voice. You review, edit the two lines that matter, and publish.',
         width: 540,
@@ -125,6 +141,56 @@ export function build() {
         { parent: 'hero-col' }
       ),
       el(
+        'divider',
+        { name: 'Logo rule', width: 420, height: 1, background: T.line },
+        { parent: 'hero-col' }
+      ),
+      el(
+        'text',
+        {
+          name: 'Logo strip label',
+          width: 420,
+          content: 'Shipping changelogs at',
+          fontSize: 12,
+          fontWeight: '600',
+          color: T.faint,
+          textTransform: 'uppercase',
+          letterSpacing: 0.9,
+        },
+        { parent: 'hero-col' }
+      ),
+      // A row of separate wordmarks rather than one string of them. Text, not
+      // images, because a template that ships five logo files is a template
+      // nobody can edit — and one element each means you can drop a real logo
+      // in place of any of them without touching the others.
+      el(
+        'stack',
+        {
+          name: 'Logo strip',
+          width: 540,
+          layout: 'row',
+          gap: 26,
+          padding: 0,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        },
+        { ref: 'logos', parent: 'hero-col' }
+      ),
+      ...['Northwind', 'Basecamp', 'Hyperping', 'Loops'].map((brand) =>
+        el(
+          'text',
+          {
+            name: brand,
+            width: Math.max(70, brand.length * 9),
+            content: brand,
+            fontSize: 15,
+            fontWeight: '600',
+            color: T.muted,
+          },
+          { parent: 'logos' }
+        )
+      ),
+      el(
         'code',
         {
           name: 'Config sample',
@@ -154,7 +220,7 @@ export function build() {
 
       /* ========================================================= features === */
       band('features', {
-        y: 696,
+        y: 676,
         height: 460,
         background: T.surface,
         anchor: 'features',
@@ -202,7 +268,7 @@ export function build() {
 
       /* ========================================================== pricing === */
       band('pricing', {
-        y: 1156,
+        y: 1136,
         height: 620,
         background: T.wash,
         anchor: 'pricing',
@@ -269,7 +335,7 @@ export function build() {
       ),
 
       /* ============================================================== faq === */
-      band('faq', { y: 1776, height: 520, background: T.surface, anchor: 'faq', name: 'FAQ' }),
+      band('faq', { y: 1756, height: 520, background: T.surface, anchor: 'faq', name: 'FAQ' }),
       ...heading({
         ref: 'faq-head',
         parent: 'faq',
@@ -302,7 +368,7 @@ export function build() {
 
       /* =========================================================== signup === */
       band('signup', {
-        y: 2296,
+        y: 2276,
         height: 460,
         background: T.wash,
         anchor: 'signup',
@@ -369,7 +435,7 @@ export function build() {
 
       /* =========================================================== footer === */
       ...footer({
-        y: 2796,
+        y: 2776,
         gutter: GUTTER,
         width: COLUMN,
         note: '© Cadence. Built with devlove — replace this copy and ship it.',

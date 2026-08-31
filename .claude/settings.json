@@ -15,7 +15,23 @@
       "Bash(node shot.mjs borders.png http://127.0.0.1:8080/)",
       "Bash(node --check js/ui/components/dl-palette.js)",
       "Bash(tasklist //FI \"IMAGENAME eq chrome.exe\")",
-      "Bash(node -e \"import\\('./js/registry/elements.js'\\).then\\(\\(\\)=>console.log\\('modules load'\\)\\)\")"
+      "Bash(node -e \"import\\('./js/registry/elements.js'\\).then\\(\\(\\)=>console.log\\('modules load'\\)\\)\")",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/cs.py\")",
+      "Bash(node shot.mjs skills.png http://127.0.0.1:8080/ --preview --scroll=560)",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/multiselect-engine.py\")",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/multiselect-app.py\")",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/multiselect-canvas.py\")",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/multiselect-ui.py\")",
+      "Bash(node shot.mjs ms.png http://127.0.0.1:8080/ --probe=probe.js)",
+      "Bash(node shot.mjs ms2.png http://127.0.0.1:8080/ --probe=probe.js)",
+      "Bash(node shot.mjs ms3.png http://127.0.0.1:8080/ --dock=layers --probe=probe.js)",
+      "Bash(node ctrlclick.mjs ctrl.png)",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/flicker.py\")",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/saas-theme.py\")",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/saas-logos.py\")",
+      "Bash(node shot.mjs saas2b.png http://127.0.0.1:8080/ --template=saas --preview)",
+      "Bash(node shot.mjs hero.png http://127.0.0.1:8080/ --preview)",
+      "Bash(node flickertest.mjs)"
     ]
   }
 }

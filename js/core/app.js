@@ -11,7 +11,8 @@
  *   ready      engine live, first document compiled
  *   document   tree structure changed — panels should re-read everything
  *   node       one node's properties changed
- *   selection  selected id changed
+ *   selection  the selection changed — `state.selection` is the primary id,
+ *              `state.selected` is every selected id
  *   hover      hovered id changed
  *   geometry   the preview frame reported new measurements
  *   mode       design/preview switch
@@ -26,7 +27,7 @@ import { Emitter } from './emitter.js';
 import { compileService } from './compile-service.js';
 import { Engine } from '../engine/index.js';
 import { FRAME_CHANNEL } from '../engine/preview-runtime.js';
-import { DEFAULT_TEMPLATE_ID, buildTemplate, templateById } from '../templates/index.js';
+import { DEFAULT_TEMPLATE_ID, applyTo, buildTemplate, templateById } from '../templates/index.js';
 
 /** localStorage key for the autosaved document. */
 const AUTOSAVE_KEY = 'devlove.autosave.v1';
@@ -67,7 +68,10 @@ export class DevloveApp extends Emitter {
       ready: false,
       mode: /** @type {'design' | 'preview'} */ ('design'),
       zoom: 1,
+      /** The primary selection: the element the inspector reads. */
       selection: /** @type {string | null} */ (null),
+      /** Every selected id, in pick order. The last one is `selection`. */
+      selected: /** @type {string[]} */ ([]),
       hover: /** @type {string | null} */ (null),
       /** measured boxes reported by the frame: id -> [x, y, w, h] */
       rects: /** @type {Record<string, number[]>} */ (Object.create(null)),
@@ -173,8 +177,7 @@ export class DevloveApp extends Emitter {
       null
     );
     if (id) {
-      this.state.selection = id;
-      this.emit('selection', id);
+      this._syncSelectionFromEngine();
       this.invalidate();
       this.setStatus(`Added ${kind}`);
     }
@@ -187,13 +190,68 @@ export class DevloveApp extends Emitter {
       return;
     }
     if (this._safe('delete element', () => this.engine.deleteElement(id), false) !== false) {
-      if (this.state.selection === id) {
-        this.state.selection = null;
-        this.emit('selection', null);
-      }
+      this._syncSelectionFromEngine();
       this.invalidate();
       this.setStatus('Deleted element');
     }
+  }
+
+  /**
+   * Deletes everything selected, as one undo step.
+   *
+   * Children are skipped when an ancestor is also going: deleting a container
+   * takes its subtree with it, and asking the engine to delete a node that no
+   * longer exists is an error the user did not make.
+   */
+  removeSelection() {
+    const ids = this._topLevelSelection();
+    if (ids.length === 0) {
+      return;
+    }
+    const removed = this._safe('delete elements', () => this.engine.deleteElements(ids), 0);
+    this._syncSelectionFromEngine();
+    this.invalidate();
+    if (removed) {
+      this.setStatus(removed === 1 ? 'Deleted element' : `Deleted ${removed} elements`);
+    }
+  }
+
+  /** Duplicates everything selected, as one undo step. */
+  duplicateSelection() {
+    const ids = this._topLevelSelection();
+    if (ids.length === 0) {
+      return;
+    }
+    const clones = this._safe('duplicate elements', () => this.engine.duplicateElements(ids), []);
+    this._syncSelectionFromEngine();
+    this.invalidate();
+    this.setStatus(
+      clones.length === 1 ? 'Duplicated element' : `Duplicated ${clones.length} elements`
+    );
+  }
+
+  /**
+   * The selected ids with any whose ancestor is also selected removed.
+   *
+   * Delete and duplicate both need this: acting on a container *and* on its
+   * child means deleting the child twice, or duplicating it into a copy that
+   * already contains it.
+   *
+   * @returns {string[]}
+   */
+  _topLevelSelection() {
+    const selected = new Set(this.state.selected);
+    return this.state.selected.filter((id) => {
+      if (id === 'root') {
+        return false;
+      }
+      for (let node = this.getNode(id); node && node.parent; node = this.getNode(node.parent)) {
+        if (selected.has(node.parent)) {
+          return false;
+        }
+      }
+      return true;
+    });
   }
 
   /** @param {string} id */
@@ -203,8 +261,7 @@ export class DevloveApp extends Emitter {
     }
     const clone = this._safe('duplicate element', () => this.engine.duplicateElement(id), null);
     if (clone) {
-      this.state.selection = clone;
-      this.emit('selection', clone);
+      this._syncSelectionFromEngine();
       this.invalidate();
       this.setStatus('Duplicated element');
     }
@@ -249,15 +306,54 @@ export class DevloveApp extends Emitter {
     }
   }
 
-  /** @param {string | null} id */
+  /**
+   * Replaces the selection.
+   *
+   * @param {string | string[] | null} id
+   */
   select(id) {
-    const next = id || null;
-    if (this.state.selection === next) {
+    this._safe('select', () => this.engine.select(id || null), null);
+    this._syncSelectionFromEngine();
+  }
+
+  /**
+   * Adds an element to the selection, or removes it if it is already in it.
+   * This is what Ctrl-click does, on the canvas and in the Layers tree.
+   *
+   * @param {string} id
+   */
+  toggleSelection(id) {
+    if (!id) {
       return;
     }
-    this.state.selection = next;
-    this._safe('select', () => this.engine.select(next), null);
-    this.emit('selection', next);
+    this._safe('select', () => this.engine.toggleSelected(id), null);
+    this._syncSelectionFromEngine();
+  }
+
+  /**
+   * @param {string} id
+   * @returns {boolean}
+   */
+  isSelected(id) {
+    return this.state.selected.includes(id);
+  }
+
+  /**
+   * Selects every sibling of the current selection — Ctrl+A.
+   *
+   * "Everything on the page" is almost never what you want in a builder; "all
+   * the cards in this row" is. With nothing selected it falls back to the
+   * page's own top-level children, which is the closest useful reading of
+   * select-all here.
+   */
+  selectSiblings() {
+    const node = this.selectedNode();
+    const parent = node ? this.getNode(node.parent || 'root') : this.getNode('root');
+    if (!parent) {
+      return;
+    }
+    this.select(parent.children);
+    this.setStatus(`${parent.children.length} selected`, 'muted');
   }
 
   /** @param {string | null} id */
@@ -308,6 +404,37 @@ export class DevloveApp extends Emitter {
     }
     this.emit('node', id);
     return true;
+  }
+
+  /**
+   * Applies one property to **every selected element**.
+   *
+   * This is what the inspector calls. With one element selected it is exactly
+   * `setProperty`; with several, changing the padding changes all of their
+   * padding, which is the only reason to have selected several.
+   *
+   * @param {string} key dotted property path
+   * @param {string} value
+   * @param {{live?: boolean}} [options]
+   * @returns {boolean} whether every element accepted the value
+   */
+  setSelectedProperty(key, value, options = {}) {
+    const ids = this.state.selected;
+    if (ids.length === 0) {
+      return false;
+    }
+    // One checkpoint for the batch, then live writes, so a change to five
+    // elements is one press of Ctrl+Z rather than five.
+    if (!options.live && ids.length > 1) {
+      this.beginGesture();
+    }
+    const batched = ids.length > 1 ? { ...options, live: true } : options;
+
+    let ok = true;
+    for (const id of ids) {
+      ok = this.setProperty(id, key, value, batched) && ok;
+    }
+    return ok;
   }
 
   /**
@@ -439,16 +566,35 @@ export class DevloveApp extends Emitter {
    * @param {number} dy
    */
   nudgeSelection(dx, dy) {
-    const id = this.state.selection;
-    if (!id || id === 'root') {
-      return;
-    }
-    const node = this.getNode(id);
-    if (!node) {
+    const ids = this.state.selected.filter((id) => id !== 'root');
+    if (ids.length === 0) {
       return;
     }
     this.beginGesture();
-    this.moveElement(id, node.x + dx, node.y + dy);
+    for (const id of ids) {
+      const node = this.getNode(id);
+      if (node) {
+        this.moveElement(id, node.x + dx, node.y + dy);
+      }
+    }
+  }
+
+  /**
+   * Sends everything selected forwards or backwards among its siblings.
+   *
+   * @param {number} delta `-1` backwards, `1` forwards
+   */
+  reorderSelection(delta) {
+    const ids = this.state.selected.filter((id) => id !== 'root');
+    if (ids.length === 0) {
+      return;
+    }
+    // Moving forwards, the last sibling has to go first or it displaces the
+    // ones behind it; moving backwards, the other way round.
+    const order = delta > 0 ? [...ids].reverse() : ids;
+    for (const id of order) {
+      this.reorder(id, delta);
+    }
   }
 
   // ========================================================= persistence ===
@@ -527,33 +673,40 @@ export class DevloveApp extends Emitter {
     this._safe(
       'apply template',
       () => {
-        this.engine.resetProject();
-        for (const [key, value] of Object.entries(template.page || {})) {
-          this.engine.updatePage(key, String(value));
-        }
-        // Templates refer to their own nodes by `ref`; map those to the real
-        // ids as they are created.
-        /** @type {Record<string, string>} */
-        const aliases = Object.create(null);
-        for (const spec of template.nodes) {
-          const parent = spec.parent ? aliases[spec.parent] || spec.parent : 'root';
-          const id = this.engine.addElementWith(
-            spec.kind,
-            parent,
-            Number(spec.x) || 0,
-            Number(spec.y) || 0,
-            spec.props || {}
-          );
-          if (spec.ref) {
-            aliases[spec.ref] = id;
-          }
-        }
+        applyTo(this.engine, template);
         return true;
       },
       false
     );
     this.select(null);
     this.invalidate();
+  }
+
+  /**
+   * Compiles a template into a standalone page, without touching the document
+   * being edited.
+   *
+   * Used by the Templates panel for its thumbnails. It builds a throwaway
+   * engine rather than a special preview path, so what the thumbnail shows is
+   * exactly what applying the template would produce — a preview that can
+   * drift from the real thing is worse than no preview.
+   *
+   * @param {string} id
+   * @returns {Promise<string>} the compiled HTML, or `''` if the id is unknown
+   */
+  async previewTemplate(id) {
+    const template = templateById(id);
+    if (!template) {
+      return '';
+    }
+    try {
+      const scratch = new Engine();
+      applyTo(scratch, template.build());
+      return await compileService.compile(scratch.snapshot(), { editor: false });
+    } catch (error) {
+      console.warn(`[devlove] could not preview the ${id} template`, error);
+      return '';
+    }
   }
 
   /**
@@ -680,12 +833,27 @@ export class DevloveApp extends Emitter {
 
   // ============================================================== helpers ===
 
+  /**
+   * Pulls the selection back out of the engine and tells the panels.
+   *
+   * Every path that changes the selection ends here rather than assigning
+   * `state.selection` itself — the engine drops ids whose nodes are gone, so
+   * it is the only thing that knows what is really selected after a delete or
+   * an undo.
+   */
   _syncSelectionFromEngine() {
-    const next = this._safe('read selection', () => this.engine.selection(), null);
-    if (next !== this.state.selection) {
-      this.state.selection = next;
-      this.emit('selection', next);
+    const ids = this._safe('read selection', () => this.engine.selectedIds(), []);
+    const primary = ids.length > 0 ? ids[ids.length - 1] : null;
+    const same =
+      primary === this.state.selection &&
+      ids.length === this.state.selected.length &&
+      ids.every((id, index) => id === this.state.selected[index]);
+    if (same) {
+      return;
     }
+    this.state.selected = ids;
+    this.state.selection = primary;
+    this.emit('selection', primary);
   }
 
   /** Schedules an autosave of the current document. */

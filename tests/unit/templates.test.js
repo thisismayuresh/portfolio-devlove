@@ -18,38 +18,25 @@ import { compileDocument } from '../../js/engine/compiler.js';
 import {
   DEFAULT_TEMPLATE_ID,
   TEMPLATES,
+  applyTo,
   buildTemplate,
   templateById,
 } from '../../js/templates/index.js';
 import { props } from '../../js/templates/parts.js';
 
 /**
- * Replays a template through the engine, exactly as the app does.
+ * Replays a template through the engine.
+ *
+ * Uses the shipped `applyTo` rather than a copy of it, so these tests exercise
+ * the same replay the editor and the template previews use — a test with its
+ * own version would keep passing after the real one broke.
  *
  * @param {{page?: Record<string, any>, nodes: any[]}} template
  * @returns {Engine}
  */
 function apply(template) {
   const engine = new Engine();
-  engine.resetProject();
-  for (const [key, value] of Object.entries(template.page || {})) {
-    engine.updatePage(key, String(value));
-  }
-  /** @type {Record<string, string>} */
-  const aliases = Object.create(null);
-  for (const spec of template.nodes) {
-    const parent = spec.parent ? aliases[spec.parent] || spec.parent : 'root';
-    const id = engine.addElementWith(
-      spec.kind,
-      parent,
-      Number(spec.x) || 0,
-      Number(spec.y) || 0,
-      spec.props || {}
-    );
-    if (spec.ref) {
-      aliases[spec.ref] = id;
-    }
-  }
+  applyTo(engine, template);
   return engine;
 }
 
