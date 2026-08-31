@@ -35,7 +35,7 @@ body {
 }
 
 ::selection {
-  background: var(--accent-wash);
+  background: rgba(0, 120, 212, 0.4);
   color: var(--ink-strong);
 }
 
@@ -53,16 +53,17 @@ body {
   background: transparent;
 }
 
+/* Square and translucent, the way VS Code draws them. No track, no radius. */
 *::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
-  border: 3px solid transparent;
-  background-clip: content-box;
-  border-radius: 999px;
+  background: rgba(121, 121, 121, 0.4);
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #4b505c;
-  background-clip: content-box;
+  background: rgba(100, 100, 100, 0.7);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* --------------------------------------------------------------- shell grid */
@@ -76,9 +77,9 @@ body {
     var(--panel-right-w);
   grid-template-rows: var(--bar-top-h) minmax(0, 1fr) var(--bar-bottom-h);
   grid-template-areas:
-    "topbar topbar topbar topbar"
-    "rail   left   stage  right"
-    "status status status status";
+    'topbar topbar topbar topbar'
+    'rail   left   stage  right'
+    'status status status status';
   height: 100vh;
   width: 100vw;
 }
@@ -88,13 +89,13 @@ body {
   display: none;
 }
 
-.shell[data-mode="preview"] {
+.shell[data-mode='preview'] {
   grid-template-columns: 0 0 minmax(0, 1fr) 0;
 }
 
-.shell[data-mode="preview"] .shell__rail,
-.shell[data-mode="preview"] .shell__left,
-.shell[data-mode="preview"] .shell__right {
+.shell[data-mode='preview'] .shell__rail,
+.shell[data-mode='preview'] .shell__left,
+.shell[data-mode='preview'] .shell__right {
   display: none;
 }
 
@@ -192,12 +193,23 @@ body {
   text-align: center;
 }
 
+/* A wordmark, not a logo blob. The tool is named in the same monospace it
+   uses for every other literal value. */
 .boot__mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  background: linear-gradient(150deg, var(--accent), #8a5cff);
-  box-shadow: 0 8px 24px rgba(76, 141, 255, 0.28);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--ink-dim);
+}
+
+.boot__mark::before {
+  content: 'devlove';
+}
+
+.boot__mark::after {
+  content: '_';
+  color: var(--accent);
+  animation: boot-caret 1.1s steps(1) infinite;
 }
 
 .boot__title {
@@ -220,7 +232,6 @@ body {
   overflow: auto;
   padding: 12px;
   border: 1px solid var(--danger);
-  border-radius: var(--radius-md);
   background: var(--danger-wash);
   color: var(--ink);
   font-family: var(--font-mono);
@@ -234,15 +245,14 @@ body {
   display: block;
 }
 
-.boot--failed .boot__mark {
-  background: linear-gradient(150deg, var(--danger), #b3453d);
-  box-shadow: none;
+.boot--failed .boot__mark::after {
+  color: var(--danger);
+  animation: none;
 }
 
 .boot__bar {
   width: 168px;
   height: 2px;
-  border-radius: 2px;
   background: var(--line);
   overflow: hidden;
 }
@@ -252,13 +262,23 @@ body {
 }
 
 .boot__bar::after {
-  content: "";
+  content: '';
   display: block;
   width: 40%;
   height: 100%;
-  border-radius: inherit;
   background: var(--accent);
   animation: boot-slide 1.1s var(--ease) infinite;
+}
+
+@keyframes boot-caret {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
 }
 
 @keyframes boot-slide {
@@ -285,26 +305,25 @@ body {
   display: flex;
   align-items: center;
   gap: 7px;
-  height: 30px;
-  padding: 0 11px 0 9px;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-md);
+  height: 26px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--line-strong);
   background: var(--surface-raised);
   color: var(--ink-strong);
   font-family: var(--font-ui);
   font-size: var(--text-sm);
   white-space: nowrap;
   pointer-events: none;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-pop);
   transform: translate3d(-9999px, -9999px, 0);
   will-change: transform;
 }
 
 .drag-ghost svg {
-  color: var(--accent);
+  color: var(--ink-dim);
 }
 
-body[data-dragging="true"] {
+body[data-dragging='true'] {
   cursor: grabbing;
 }
 

@@ -1,0 +1,27 @@
+{
+  "name": "devlove",
+  "version": "0.2.0",
+  "private": true,
+  "description": "A drag-and-drop website builder in plain JavaScript — no framework, no bundler, no build step",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "serve": "python serve.py",
+    "test": "node --test \"tests/unit/*.test.js\"",
+    "test:browser": "node tests/run-browser-tests.mjs",
+    "test:all": "npm test && npm run test:browser",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "eslint": "^9.13.0",
+    "globals": "^15.11.0",
+    "prettier": "^3.3.3"
+  }
+}

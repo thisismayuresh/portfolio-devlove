@@ -1,9 +1,9 @@
 /**
  * Entry point.
  *
- * Registers the custom elements, boots the WASM engine, and swaps the boot
- * gate for the editor. Any failure before the engine is live is surfaced in
- * the boot screen with a copy-pasteable command rather than a blank page.
+ * Registers the custom elements, starts the engine, and swaps the boot gate
+ * for the editor. Any failure before the engine is live is surfaced in the
+ * boot screen rather than as a blank page.
  *
  * @module main
  */
@@ -13,13 +13,14 @@ import { installShortcuts } from './core/shortcuts.js';
 
 // Registering a component is a side effect of importing it; each module calls
 // `customElements.define` at the bottom. Adding a panel = one import here.
-import './ui/components/forge-toolbar.js';
-import './ui/components/forge-rail.js';
-import './ui/components/forge-palette.js';
-import './ui/components/forge-layers.js';
-import './ui/components/forge-canvas.js';
-import './ui/components/forge-inspector.js';
-import './ui/components/forge-status.js';
+import './ui/components/dl-toolbar.js';
+import './ui/components/dl-rail.js';
+import './ui/components/dl-palette.js';
+import './ui/components/dl-layers.js';
+import './ui/components/dl-templates.js';
+import './ui/components/dl-canvas.js';
+import './ui/components/dl-inspector.js';
+import './ui/components/dl-status.js';
 
 const boot = document.getElementById('boot');
 const bootNote = document.getElementById('boot-note');
@@ -40,7 +41,7 @@ function setBootNote(text) {
  */
 function failBoot(error) {
   const detail = error instanceof Error ? error.message : String(error);
-  console.error('[forge] boot failed', error);
+  console.error('[devlove] boot failed', error);
   if (boot) {
     boot.classList.add('boot--failed');
   }
@@ -65,7 +66,7 @@ function revealShell() {
 
 async function start() {
   try {
-    setBootNote('Instantiating the WebAssembly module…');
+    setBootNote('Starting the engine…');
     await app.boot();
 
     // Keep the shell's grid in step with preview mode.
@@ -79,10 +80,10 @@ async function start() {
     revealShell();
     app.setStatus('Engine ready', 'info');
 
-    // Documented debug handle. Open the console and poke at `__forge.engine`,
-    // `__forge.state`, or `__forge.getTree()`. The browser test runner drives
+    // Documented debug handle. Open the console and poke at `__devlove.engine`,
+    // `__devlove.state`, or `__devlove.getTree()`. The browser test suite drives
     // the real editor through this rather than through a copy of it.
-    window.__forge = app;
+    window.__devlove = app;
   } catch (error) {
     failBoot(error);
   }

@@ -6,7 +6,7 @@
  * Dragging is pointer-based so it behaves identically inside a shadow root
  * and can also drop onto the canvas — see `core/drag-controller.js`.
  *
- * @module ui/components/forge-layers
+ * @module ui/components/dl-layers
  */
 
 import { PanelElement, esc } from '../panel-element.js';
@@ -18,7 +18,7 @@ import { blueprintFor } from '../../registry/elements.js';
 /** Fraction of a row height treated as an "insert beside" zone. */
 const EDGE_ZONE = 0.3;
 
-export class ForgeLayers extends PanelElement {
+export class DlLayers extends PanelElement {
   static styles = `
     .root {
       display: flex;
@@ -43,26 +43,25 @@ export class ForgeLayers extends PanelElement {
       touch-action: none;
     }
     .row:hover { background: var(--surface-hover); color: var(--ink); }
-    .row[data-selected="true"] { background: var(--accent-wash); color: var(--ink-strong); }
+    .row[data-selected="true"] { background: var(--surface-active); color: var(--ink-strong); }
     .row[data-selected="true"]::before {
       content: "";
       position: absolute;
       left: 0; top: 0; bottom: 0;
-      width: 2px;
-      background: var(--accent);
+      width: 1px;
+      background: var(--ink-strong);
     }
     .row[data-peek="true"] { background: var(--surface-active); }
     .row[data-dim="true"] { opacity: 0.45; }
 
-    .row[data-drop="into"] { box-shadow: inset 0 0 0 1px var(--accent); border-radius: 3px; }
+    .row[data-drop="into"] { box-shadow: inset 0 0 0 1px var(--accent); }
     .row[data-drop="before"]::after,
     .row[data-drop="after"]::after {
       content: "";
       position: absolute;
       left: 6px; right: 6px;
-      height: 2px;
+      height: 1px;
       background: var(--accent);
-      border-radius: 2px;
     }
     .row[data-drop="before"]::after { top: -1px; }
     .row[data-drop="after"]::after { bottom: -1px; }
@@ -73,7 +72,6 @@ export class ForgeLayers extends PanelElement {
       width: 14px; height: 14px;
       flex: 0 0 auto;
       color: var(--ink-faint);
-      border-radius: 2px;
     }
     .row__caret:hover { background: var(--surface-active); color: var(--ink); }
     .row__caret[data-leaf="true"] { visibility: hidden; }
@@ -81,7 +79,7 @@ export class ForgeLayers extends PanelElement {
     .row__caret svg { transition: transform 110ms var(--ease); }
 
     .row__icon { flex: 0 0 auto; color: var(--ink-faint); }
-    .row[data-selected="true"] .row__icon { color: var(--accent); }
+    .row[data-selected="true"] .row__icon { color: var(--ink-strong); }
 
     .row__name {
       flex: 1 1 auto;
@@ -97,7 +95,6 @@ export class ForgeLayers extends PanelElement {
       place-items: center;
       width: 18px; height: 18px;
       flex: 0 0 auto;
-      border-radius: 3px;
       color: var(--ink-faint);
       opacity: 0;
     }
@@ -413,4 +410,4 @@ export class ForgeLayers extends PanelElement {
   }
 }
 
-customElements.define('forge-layers', ForgeLayers);
+customElements.define('dl-layers', DlLayers);

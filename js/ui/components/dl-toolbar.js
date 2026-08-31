@@ -1,7 +1,7 @@
 /**
  * Top application bar: branding, document name, mode switch, file actions.
  *
- * @module ui/components/forge-toolbar
+ * @module ui/components/dl-toolbar
  */
 
 import { PanelElement } from '../panel-element.js';
@@ -9,30 +9,29 @@ import { icon } from '../icons.js';
 import { app } from '../../core/app.js';
 import { downloadText, pickTextFile } from '../../util/files.js';
 
-export class ForgeToolbar extends PanelElement {
+export class DlToolbar extends PanelElement {
   static styles = `
     .root {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       height: 100%;
-      padding: 0 10px 0 12px;
+      padding: 0 8px;
       background: var(--surface-chrome);
     }
 
-    .brand { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
-    .brand__mark {
-      width: 20px; height: 20px;
-      border-radius: 6px;
-      background: linear-gradient(150deg, var(--accent), #8a5cff);
-      box-shadow: 0 2px 8px rgba(76, 141, 255, 0.35);
-    }
-    .brand__name {
+    /* A wordmark in the same monospace the tool uses for every literal value.
+       No logo blob and no gradient: the title bar of an editor is not where a
+       brand belongs. */
+    .brand {
+      flex: 0 0 auto;
+      padding-left: 4px;
+      font-family: var(--font-mono);
       font-size: var(--text-md);
-      font-weight: 600;
-      color: var(--ink-strong);
-      letter-spacing: -0.01em;
+      color: var(--ink-dim);
+      user-select: none;
     }
+    .brand b { font-weight: 600; color: var(--ink); }
 
     .sep { width: 1px; height: 18px; background: var(--line); flex: 0 0 auto; }
     .spacer { flex: 1 1 auto; }
@@ -67,10 +66,7 @@ export class ForgeToolbar extends PanelElement {
 
   template() {
     return `
-      <div class="brand">
-        <div class="brand__mark"></div>
-        <span class="brand__name">Forge</span>
-      </div>
+      <div class="brand"><b>devlove</b></div>
 
       <div class="sep"></div>
 
@@ -87,7 +83,7 @@ export class ForgeToolbar extends PanelElement {
         <button class="icon-btn" data-action="new" title="Clear the canvas" aria-label="New">
           ${icon('reset', 15)}
         </button>
-        <button class="icon-btn" data-action="open" title="Open a .forge.json project" aria-label="Open">
+        <button class="icon-btn" data-action="open" title="Open a .devlove.json project" aria-label="Open">
           ${icon('upload', 15)}
         </button>
         <button class="icon-btn" data-action="save" title="Save the project file" aria-label="Save">
@@ -176,27 +172,28 @@ export class ForgeToolbar extends PanelElement {
     }
   }
 
-  _saveProject() {
-    downloadText(`${slug(app.getPage().title)}.forge.json`, app.serializeProject(), 'application/json');
+  async _saveProject() {
+    const json = await app.serializeProject();
+    downloadText(`${slug(app.getPage().title)}.devlove.json`, json, 'application/json');
     app.setStatus('Project saved to your downloads');
   }
 
   async _copyHtml() {
-    const html = app.exportHtml();
+    const html = await app.exportHtml();
     if (!html) {
       return;
     }
     try {
       await navigator.clipboard.writeText(html);
       app.setStatus('Exported HTML copied to the clipboard');
-    } catch (error) {
+    } catch {
       // Clipboard access needs a secure context and user permission.
       app.setStatus('Clipboard blocked — use Export to download instead', 'danger');
     }
   }
 
-  _exportHtml() {
-    const html = app.exportHtml();
+  async _exportHtml() {
+    const html = await app.exportHtml();
     if (!html) {
       return;
     }
@@ -234,4 +231,4 @@ function slug(value) {
   return cleaned || 'untitled';
 }
 
-customElements.define('forge-toolbar', ForgeToolbar);
+customElements.define('dl-toolbar', DlToolbar);

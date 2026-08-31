@@ -6,7 +6,7 @@
  * rest, so adding a dock panel is one entry in {@link RAIL_ITEMS} plus the
  * element in the markup.
  *
- * @module ui/components/forge-rail
+ * @module ui/components/dl-rail
  */
 
 import { PanelElement } from '../panel-element.js';
@@ -25,17 +25,25 @@ import { app } from '../../core/app.js';
 export const RAIL_ITEMS = Object.freeze([
   { panel: 'elements', icon: 'plus', label: 'Elements', shortcut: '1' },
   { panel: 'layers', icon: 'layers', label: 'Layers', shortcut: '2' },
+  { panel: 'templates', icon: 'grid', label: 'Templates', shortcut: '3' },
 ]);
 
-export class ForgeRail extends PanelElement {
+export class DlRail extends PanelElement {
+  /**
+   * Styled as VS Code's activity bar, deliberately.
+   *
+   * Slots are full-bleed squares with no radius and no background fill. The
+   * active one is signalled the way VS Code signals it — the icon goes white
+   * and a 1px white border appears on the leading edge. No coloured pill: an
+   * accent-filled rounded chip reads as decoration, and there is nothing here
+   * for decoration to say.
+   */
   static styles = `
     .root {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 4px;
+      align-items: stretch;
       height: 100%;
-      padding: 8px 0;
       background: var(--surface-rail);
     }
 
@@ -43,25 +51,24 @@ export class ForgeRail extends PanelElement {
       position: relative;
       display: grid;
       place-items: center;
-      width: 32px;
-      height: 32px;
-      border-radius: var(--radius-md);
+      width: 100%;
+      height: var(--rail-w);
       color: var(--ink-faint);
-      transition: color 90ms var(--ease), background 90ms var(--ease);
+      transition: color 100ms var(--ease);
     }
-    .slot:hover { color: var(--ink); background: var(--surface-hover); }
-    .slot[aria-pressed="true"] { color: var(--accent); background: var(--accent-wash); }
+    .slot:hover { color: var(--ink-strong); }
+    .slot[aria-pressed="true"] { color: var(--ink-strong); }
     .slot[aria-pressed="true"]::before {
       content: "";
       position: absolute;
-      left: -8px;
-      top: 6px;
-      bottom: 6px;
-      width: 2px;
-      border-radius: 0 2px 2px 0;
-      background: var(--accent);
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--ink-strong);
     }
-    .slot:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    /* Inset so the ring is not clipped by the rail's own edge. */
+    .slot:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
 
     .spacer { flex: 1 1 auto; }
   `;
@@ -74,12 +81,12 @@ export class ForgeRail extends PanelElement {
                   aria-pressed="false"
                   title="${item.label}${item.shortcut ? ` (${item.shortcut})` : ''}"
                   aria-label="${item.label}">
-            ${icon(item.icon, 17)}
+            ${icon(item.icon, 20)}
           </button>`
       ).join('')}
       <span class="spacer"></span>
       <button class="slot" data-action="help" type="button" title="Keyboard shortcuts" aria-label="Keyboard shortcuts">
-        ${icon('help', 17)}
+        ${icon('help', 20)}
       </button>
     `;
   }
@@ -127,4 +134,4 @@ export class ForgeRail extends PanelElement {
   }
 }
 
-customElements.define('forge-rail', ForgeRail);
+customElements.define('dl-rail', DlRail);

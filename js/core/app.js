@@ -1,17 +1,18 @@
 /**
  * Application controller.
  *
- * This is the only module that talks to the WASM engine. Panels read state
- * from `app.state`, call command methods, and re-render when the topics they
- * subscribed to fire. Keeping the bridge in one place is what makes the UI
- * replaceable and the engine testable.
+ * This is the only module that talks to the engine. Panels read state from
+ * `app.state`, call command methods, and re-render when the topics they
+ * subscribed to fire. Keeping that boundary in one place is what makes the UI
+ * replaceable and the engine testable on its own.
  *
  * Topics
  * ------
- *   ready      engine instantiated, first document compiled
+ *   ready      engine live, first document compiled
  *   document   tree structure changed — panels should re-read everything
  *   node       one node's properties changed
  *   selection  selected id changed
+ *   hover      hovered id changed
  *   geometry   the preview frame reported new measurements
  *   mode       design/preview switch
  *   zoom       canvas zoom changed
@@ -22,14 +23,13 @@
  */
 
 import { Emitter } from './emitter.js';
-import { createEngine } from './wasm-bridge.js';
-import { STARTER_TEMPLATE } from './starter-template.js';
-
-/** postMessage channel shared with the runtime compiled into the frame. */
-const FRAME_CHANNEL = 'tb-frame';
+import { compileService } from './compile-service.js';
+import { Engine } from '../engine/index.js';
+import { FRAME_CHANNEL } from '../engine/preview-runtime.js';
+import { DEFAULT_TEMPLATE_ID, buildTemplate, templateById } from '../templates/index.js';
 
 /** localStorage key for the autosaved document. */
-const AUTOSAVE_KEY = 'forge.autosave.v1';
+const AUTOSAVE_KEY = 'devlove.autosave.v1';
 
 /** Debounce window for autosaving, in milliseconds. */
 const AUTOSAVE_DELAY = 700;
@@ -39,20 +39,25 @@ const AUTOSAVE_DELAY = 700;
  * patch, so they force a full document recompile.
  * @type {ReadonlySet<string>}
  */
-const STRUCTURAL_KEYS = new Set([
-  'layout',
-  'hidden',
-  'autoHeight',
-  'src',
-  'href',
-  'placeholder',
-]);
+const STRUCTURAL_KEYS = new Set(['layout', 'hidden', 'autoHeight', 'src', 'href', 'placeholder']);
 
-export class ForgeApp extends Emitter {
+/**
+ * Anything under `data.` is structural too: those keys feed a kind's `body`
+ * hook and change the element's markup — a table gains a row, a list becomes
+ * numbered — which no amount of CSS can express.
+ *
+ * @param {string} key
+ * @returns {boolean} whether changing this key needs a full recompile
+ */
+function isStructural(key) {
+  return STRUCTURAL_KEYS.has(key) || key.startsWith('data.');
+}
+
+export class DevloveApp extends Emitter {
   constructor() {
     super();
 
-    /** @type {any} the `DesignerEngine` instance living in WASM memory */
+    /** @type {Engine | null} */
     this.engine = null;
 
     /** @type {HTMLIFrameElement | null} */
@@ -74,6 +79,8 @@ export class ForgeApp extends Emitter {
     this._autosaveHandle = 0;
     this._pendingPatches = new Set();
     this._patchHandle = 0;
+    /** Bumped per recompile so a slow compile cannot overwrite a newer one. */
+    this._compileToken = 0;
 
     this._onFrameMessage = this._onFrameMessage.bind(this);
   }
@@ -81,18 +88,17 @@ export class ForgeApp extends Emitter {
   // =========================================================== lifecycle ===
 
   /**
-   * Instantiates the engine and restores or seeds a document.
+   * Creates the engine and restores or seeds a document.
    *
    * @returns {Promise<void>}
    */
   async boot() {
-    const { engine } = await createEngine();
-    this.engine = engine;
+    this.engine = new Engine();
 
     window.addEventListener('message', this._onFrameMessage);
 
     if (!this._restoreAutosave()) {
-      this.applyTemplate(STARTER_TEMPLATE);
+      this.applyTemplate(buildTemplate(DEFAULT_TEMPLATE_ID));
     }
     // Seeding a document goes through the same mutations a user would make,
     // which would otherwise leave a stack of undo steps before step one.
@@ -116,7 +122,7 @@ export class ForgeApp extends Emitter {
 
   // =============================================================== reads ===
 
-  /** @returns {any | null} parsed JSON for the selected node */
+  /** @returns {any | null} the selected node, or null */
   selectedNode() {
     if (!this.state.selection) {
       return null;
@@ -129,17 +135,17 @@ export class ForgeApp extends Emitter {
    * @returns {any | null}
    */
   getNode(id) {
-    return this._safe('read node', () => JSON.parse(this.engine.getElement(id)), null);
+    return this._safe('read node', () => this.engine.getElement(id), null);
   }
 
-  /** @returns {any} parsed page settings */
+  /** @returns {any} page settings */
   getPage() {
-    return this._safe('read page', () => JSON.parse(this.engine.getPage()), {});
+    return this._safe('read page', () => this.engine.getPage(), {});
   }
 
   /** @returns {any} nested layer tree */
   getTree() {
-    return this._safe('read tree', () => JSON.parse(this.engine.getTree()), null);
+    return this._safe('read tree', () => this.engine.getTree(), null);
   }
 
   /**
@@ -163,7 +169,7 @@ export class ForgeApp extends Emitter {
   addElement(kind, parentId, x, y) {
     const id = this._safe(
       `add ${kind}`,
-      () => this.engine.addElement(kind, parentId ?? undefined, x, y),
+      () => this.engine.addElement(kind, parentId ?? null, x, y),
       null
     );
     if (id) {
@@ -208,6 +214,7 @@ export class ForgeApp extends Emitter {
    * @param {string} id
    * @param {string} parentId
    * @param {number} [index] `-1` appends
+   * @returns {boolean} whether the move was accepted
    */
   reparent(id, parentId, index = -1) {
     const ok = this._safe(
@@ -249,7 +256,7 @@ export class ForgeApp extends Emitter {
       return;
     }
     this.state.selection = next;
-    this._safe('select', () => this.engine.select(next ?? undefined), null);
+    this._safe('select', () => this.engine.select(next), null);
     this.emit('selection', next);
   }
 
@@ -289,7 +296,7 @@ export class ForgeApp extends Emitter {
       return false;
     }
 
-    if (STRUCTURAL_KEYS.has(key)) {
+    if (isStructural(key)) {
       this.invalidate();
     } else if (key === 'content') {
       this._postToFrame({ type: 'text', id, text: value });
@@ -306,9 +313,9 @@ export class ForgeApp extends Emitter {
   /**
    * @param {string} key
    * @param {string} value
-   * @param {{live?: boolean}} [options]
+   * @returns {boolean}
    */
-  setPageProperty(key, value, options = {}) {
+  setPageProperty(key, value) {
     const ok = this._safe(
       `set page ${key}`,
       () => {
@@ -321,9 +328,6 @@ export class ForgeApp extends Emitter {
       this.emit('page');
       // Page geometry drives the frame size, so always recompile.
       this.invalidate();
-      if (options.live) {
-        // Nothing extra: the recompile already reflects the value.
-      }
     }
     return ok;
   }
@@ -341,7 +345,16 @@ export class ForgeApp extends Emitter {
    * @param {number} y
    */
   moveElement(id, x, y) {
-    if (this._safe('move element', () => { this.engine.moveElement(id, x, y); return true; }, false)) {
+    if (
+      this._safe(
+        'move element',
+        () => {
+          this.engine.moveElement(id, x, y);
+          return true;
+        },
+        false
+      )
+    ) {
       this._queuePatch(id);
       this._markDirty();
     }
@@ -356,7 +369,14 @@ export class ForgeApp extends Emitter {
    */
   resizeElement(id, width, height) {
     if (
-      this._safe('resize element', () => { this.engine.resizeElement(id, width, height); return true; }, false)
+      this._safe(
+        'resize element',
+        () => {
+          this.engine.resizeElement(id, width, height);
+          return true;
+        },
+        false
+      )
     ) {
       this._queuePatch(id);
       this._markDirty();
@@ -433,9 +453,18 @@ export class ForgeApp extends Emitter {
 
   // ========================================================= persistence ===
 
-  /** @returns {string} the project as JSON */
-  serializeProject() {
-    return this._safe('export project', () => this.engine.exportProject(), '{}');
+  /**
+   * Serialises the project. Runs in the compile worker.
+   *
+   * @returns {Promise<string>} the project as JSON
+   */
+  async serializeProject() {
+    try {
+      return await compileService.serialize(this.engine.snapshot());
+    } catch (error) {
+      this.setStatus(`export project: ${error.message}`, 'danger');
+      return '{}';
+    }
   }
 
   /**
@@ -468,7 +497,29 @@ export class ForgeApp extends Emitter {
   }
 
   /**
+   * Replaces the document with one of the templates in `js/templates/`.
+   *
+   * @param {string} id
+   * @returns {boolean} whether the id named a template
+   */
+  applyTemplateById(id) {
+    const template = templateById(id);
+    if (!template) {
+      this.setStatus(`No template called \`${id}\``, 'danger');
+      return false;
+    }
+    this.applyTemplate(template.build());
+    this.emit('page');
+    this.setStatus(`Applied the ${template.name} template`);
+    return true;
+  }
+
+  /**
    * Rebuilds the document from a declarative template.
+   *
+   * The whole replacement is one undo step: `resetProject` takes the
+   * checkpoint and every `addElementWith` after it lands inside the same
+   * guarded run, so Ctrl+Z puts the previous document back intact.
    *
    * @param {{page?: Record<string, string|number>, nodes: Array<any>}} template
    */
@@ -480,6 +531,8 @@ export class ForgeApp extends Emitter {
         for (const [key, value] of Object.entries(template.page || {})) {
           this.engine.updatePage(key, String(value));
         }
+        // Templates refer to their own nodes by `ref`; map those to the real
+        // ids as they are created.
         /** @type {Record<string, string>} */
         const aliases = Object.create(null);
         for (const spec of template.nodes) {
@@ -489,7 +542,7 @@ export class ForgeApp extends Emitter {
             parent,
             Number(spec.x) || 0,
             Number(spec.y) || 0,
-            JSON.stringify(spec.props || {})
+            spec.props || {}
           );
           if (spec.ref) {
             aliases[spec.ref] = id;
@@ -503,12 +556,21 @@ export class ForgeApp extends Emitter {
     this.invalidate();
   }
 
-  /** @returns {string} the shippable HTML document */
-  exportHtml() {
-    return this._safe('export html', () => this.engine.compileExport(), '');
+  /**
+   * Compiles the shippable document. Runs in the compile worker.
+   *
+   * @returns {Promise<string>} the HTML, or `''` if the compile failed
+   */
+  async exportHtml() {
+    try {
+      return await compileService.compile(this.engine.snapshot(), { editor: false });
+    } catch (error) {
+      this.setStatus(`export html: ${error.message}`, 'danger');
+      return '';
+    }
   }
 
-  // ============================================================ rendering ===
+  // =========================================================== rendering ===
 
   /** Schedules a full recompile of the preview document. */
   invalidate() {
@@ -521,21 +583,34 @@ export class ForgeApp extends Emitter {
     });
   }
 
-  _recompile() {
+  /**
+   * Compiles the document in the worker and hands the result to the frame.
+   *
+   * Compiles can overlap — a second change can land while the first is still
+   * in the worker — so each one carries a token and only the newest result is
+   * allowed to reach the frame.
+   *
+   * @returns {Promise<void>}
+   */
+  async _recompile() {
     if (!this.engine || !this.frame) {
       return;
     }
-    const payload = this._safe(
-      'compile document',
-      () =>
-        this.state.mode === 'preview'
-          ? this.engine.compileExport()
-          : this.engine.compilePreview(),
-      null
-    );
-    if (payload === null) {
+    const token = (this._compileToken += 1);
+    const editor = this.state.mode !== 'preview';
+
+    let payload;
+    try {
+      payload = await compileService.compile(this.engine.snapshot(), { editor });
+    } catch (error) {
+      console.error('[devlove] compile document failed:', error);
+      this.setStatus(`compile document: ${error.message}`, 'danger');
       return;
     }
+    if (token !== this._compileToken || !this.frame) {
+      return;
+    }
+
     this.state.frameReady = false;
     this.frame.srcdoc = payload;
     this.emit('document');
@@ -573,7 +648,7 @@ export class ForgeApp extends Emitter {
     try {
       target.postMessage({ ...message, target: FRAME_CHANNEL }, '*');
     } catch (error) {
-      console.error('[app] postMessage to preview frame failed', error);
+      console.error('[devlove] postMessage to preview frame failed', error);
     }
   }
 
@@ -599,15 +674,14 @@ export class ForgeApp extends Emitter {
 
     this.state.rects = data.rects;
     this.state.contentHeight = Number(data.scrollHeight) || 0;
-    this._safe('sync rects', () => this.engine.syncRects(JSON.stringify(data.rects)), null);
+    this._safe('sync rects', () => this.engine.syncRects(data.rects), null);
     this.emit('geometry');
   }
 
   // ============================================================== helpers ===
 
   _syncSelectionFromEngine() {
-    const current = this._safe('read selection', () => this.engine.selection(), undefined);
-    const next = current === undefined || current === null ? null : current;
+    const next = this._safe('read selection', () => this.engine.selection(), null);
     if (next !== this.state.selection) {
       this.state.selection = next;
       this.emit('selection', next);
@@ -619,13 +693,13 @@ export class ForgeApp extends Emitter {
     if (this._autosaveHandle) {
       clearTimeout(this._autosaveHandle);
     }
-    this._autosaveHandle = window.setTimeout(() => {
+    this._autosaveHandle = window.setTimeout(async () => {
       this._autosaveHandle = 0;
       try {
-        window.localStorage.setItem(AUTOSAVE_KEY, this.serializeProject());
+        window.localStorage.setItem(AUTOSAVE_KEY, await this.serializeProject());
       } catch (error) {
-        // Quota or a privacy mode that blocks storage — not fatal.
-        console.warn('[app] autosave skipped', error);
+        // Quota, or a privacy mode that blocks storage — not fatal.
+        console.warn('[devlove] autosave skipped', error);
       }
     }, AUTOSAVE_DELAY);
   }
@@ -636,7 +710,7 @@ export class ForgeApp extends Emitter {
     try {
       saved = window.localStorage.getItem(AUTOSAVE_KEY);
     } catch (error) {
-      console.warn('[app] could not read autosave', error);
+      console.warn('[devlove] could not read autosave', error);
       return false;
     }
     if (!saved) {
@@ -657,7 +731,11 @@ export class ForgeApp extends Emitter {
   }
 
   /**
-   * Runs an engine call, converting a thrown `JsValue` into a status message.
+   * Runs an engine call, converting a thrown error into a status message.
+   *
+   * The engine validates everything it is given and throws messages written
+   * for a human. Routing them here means a malformed input can never take the
+   * editor down — it just says why it refused.
    *
    * @template T
    * @param {string} label
@@ -669,8 +747,8 @@ export class ForgeApp extends Emitter {
     try {
       return action();
     } catch (error) {
-      const detail = typeof error === 'string' ? error : error?.message || String(error);
-      console.error(`[app] ${label} failed:`, error);
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`[devlove] ${label} failed:`, error);
       this.setStatus(`${label}: ${detail}`, 'danger');
       return fallback;
     }
@@ -686,4 +764,4 @@ export class ForgeApp extends Emitter {
 }
 
 /** The single app instance every panel imports. */
-export const app = new ForgeApp();
+export const app = new DevloveApp();

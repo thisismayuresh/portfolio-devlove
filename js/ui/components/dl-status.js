@@ -2,19 +2,20 @@
  * Bottom status strip: transient messages on the left, live document facts on
  * the right.
  *
- * @module ui/components/forge-status
+ * @module ui/components/dl-status
  */
 
-import { PanelElement, esc } from '../panel-element.js';
+import { PanelElement } from '../panel-element.js';
 import { icon } from '../icons.js';
 import { app } from '../../core/app.js';
+import { compileService } from '../../core/compile-service.js';
 
 /** How long an info message stays before falling back to the idle hint. */
 const MESSAGE_TTL = 4000;
 
 const IDLE_HINT = 'Drag an element from the left · double-click text to edit · Ctrl+scroll to zoom';
 
-export class ForgeStatus extends PanelElement {
+export class DlStatus extends PanelElement {
   static styles = `
     .root {
       display: flex;
@@ -58,7 +59,9 @@ export class ForgeStatus extends PanelElement {
         <span class="dot"></span>
         <span class="fact" id="fact-zoom"></span>
         <span class="dot"></span>
-        <span class="fact" id="fact-engine">${icon('code', 11)}<strong>WASM</strong></span>
+        <span class="fact" id="fact-engine" title="Where documents are compiled">
+          ${icon('code', 11)}<strong id="fact-engine-label">—</strong>
+        </span>
       </span>
     `;
   }
@@ -102,7 +105,12 @@ export class ForgeStatus extends PanelElement {
       : `${app.engine ? app.engine.nodeCount() - 1 : 0} elements`;
 
     this.$('#fact-zoom').textContent = `${Math.round(app.state.zoom * 100)}%`;
+
+    // Whether compiles are going off the main thread. Worth surfacing: the
+    // editor silently falls back to inline compiling if a worker cannot be
+    // created, and "why did it get slow" should not be a mystery.
+    this.$('#fact-engine-label').textContent = compileService.offThread ? 'Worker' : 'Inline';
   }
 }
 
-customElements.define('forge-status', ForgeStatus);
+customElements.define('dl-status', DlStatus);

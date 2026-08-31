@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
-    <title>Forge — visual web builder</title>
+    <title>devlove — visual web builder</title>
     <link rel="stylesheet" href="./css/tokens.css" />
     <link rel="stylesheet" href="./css/shell.css" />
     <link
@@ -19,32 +19,33 @@
       stretched grid items with a real height.
     -->
     <div class="shell" id="shell" data-mode="design" hidden>
-      <forge-toolbar class="shell__topbar"></forge-toolbar>
+      <dl-toolbar class="shell__topbar"></dl-toolbar>
 
-      <forge-rail class="shell__rail"></forge-rail>
+      <dl-rail class="shell__rail"></dl-rail>
 
       <div class="shell__left" id="left-dock">
-        <forge-palette data-panel="elements"></forge-palette>
-        <forge-layers data-panel="layers" hidden></forge-layers>
+        <dl-palette data-panel="elements"></dl-palette>
+        <dl-layers data-panel="layers" hidden></dl-layers>
+        <dl-templates data-panel="templates" hidden></dl-templates>
       </div>
 
       <div class="shell__stage">
-        <forge-canvas></forge-canvas>
+        <dl-canvas></dl-canvas>
       </div>
 
       <div class="shell__right">
-        <forge-inspector></forge-inspector>
+        <dl-inspector></dl-inspector>
       </div>
 
-      <forge-status class="shell__status"></forge-status>
+      <dl-status class="shell__status"></dl-status>
     </div>
 
-    <!-- Boot gate: shown until the WASM core reports ready, or the failure. -->
+    <!-- Boot gate: shown until the engine reports ready, or the failure. -->
     <div class="boot" id="boot">
       <div class="boot__inner">
         <div class="boot__mark"></div>
-        <h1 class="boot__title">Starting the Rust engine</h1>
-        <p class="boot__note" id="boot-note">Compiling WebAssembly module…</p>
+        <h1 class="boot__title">Starting devlove</h1>
+        <p class="boot__note" id="boot-note">Loading the editor…</p>
         <div class="boot__bar"></div>
         <pre class="boot__error" id="boot-error"></pre>
       </div>
@@ -52,9 +53,7 @@
 
     <script type="module" src="./js/main.js"></script>
     <noscript>
-      <p style="padding: 24px; color: #d7dae1">
-        This editor needs JavaScript and WebAssembly enabled.
-      </p>
+      <p style="padding: 24px; color: #d7dae1">This editor needs JavaScript enabled.</p>
     </noscript>
   </body>
 </html>

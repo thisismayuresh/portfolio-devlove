@@ -72,8 +72,7 @@ class DragController {
   _onMove(event) {
     if (this._armed && !this.payload) {
       const travelled =
-        Math.abs(event.clientX - this._armed.startX) +
-        Math.abs(event.clientY - this._armed.startY);
+        Math.abs(event.clientX - this._armed.startX) + Math.abs(event.clientY - this._armed.startY);
       if (travelled < START_THRESHOLD) {
         return;
       }

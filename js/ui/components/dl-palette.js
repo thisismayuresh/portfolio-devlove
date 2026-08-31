@@ -5,7 +5,7 @@
  * the canvas is the drop target. The two only agree on an element `kind`
  * string, so neither knows anything about the other.
  *
- * @module ui/components/forge-palette
+ * @module ui/components/dl-palette
  */
 
 import { PanelElement, esc } from '../panel-element.js';
@@ -14,7 +14,7 @@ import { app } from '../../core/app.js';
 import { dragController } from '../../core/drag-controller.js';
 import { BLUEPRINT_GROUPS } from '../../registry/elements.js';
 
-export class ForgePalette extends PanelElement {
+export class DlPalette extends PanelElement {
   static styles = `
     .root {
       display: flex;
@@ -26,46 +26,56 @@ export class ForgePalette extends PanelElement {
 
     .search {
       flex: 0 0 auto;
-      padding: 8px 10px;
-      border-bottom: 1px solid var(--line-soft);
+      padding: 6px 10px;
     }
 
-    .body { flex: 1 1 auto; min-height: 0; padding: 4px 0 16px; }
+    .body { flex: 1 1 auto; min-height: 0; padding: 0 0 16px; }
 
-    .group { border-bottom: 1px solid var(--line-soft); }
-    .group:last-child { border-bottom: 0; }
+    .group { border-bottom: 0; }
 
+    /* Caret first, then the label — the shape VS Code's tree views use, and
+       the reason the rows below can indent under it. */
     .group__head {
       display: flex;
       align-items: center;
-      gap: 7px;
+      gap: 4px;
       width: 100%;
-      height: 30px;
-      padding: 0 8px 0 10px;
-      color: var(--ink-dim);
+      height: var(--row-h);
+      padding: 0 10px 0 4px;
+      color: var(--ink);
       user-select: none;
     }
-    .group__head:hover { background: var(--surface-hover); color: var(--ink); }
+    .group__head:hover { background: var(--surface-hover); }
     .group__title {
       flex: 1 1 auto;
       text-align: left;
-      font-size: var(--text-sm);
-      font-weight: 500;
+      font-size: var(--text-xs);
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
     .group__caret {
       display: grid; place-items: center;
-      width: 14px; height: 14px;
-      color: var(--ink-faint);
-      transition: transform 130ms var(--ease);
+      width: 16px; height: 16px;
+      color: var(--ink-dim);
+      transition: transform 100ms var(--ease);
     }
     .group[data-open="false"] .group__caret { transform: rotate(-90deg); }
     .group[data-open="false"] .tiles { display: none; }
 
+    /* Square tiles on a hairline grid, not rounded cards and not a plain list.
+       A drag source wants a target big enough to grab, and a shape that says
+       "pick me up" — but the corners stay square like everything else here,
+       and the borders are shared 1px rules rather than a gap between floating
+       chips. It reads as a tool palette rather than as a web page. */
     .tiles {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 6px;
-      padding: 2px 10px 12px;
+      gap: 1px;
+      margin: 0 10px 10px;
+      padding: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
     }
 
     .tile {
@@ -73,51 +83,52 @@ export class ForgePalette extends PanelElement {
       justify-items: center;
       align-content: center;
       gap: 7px;
-      height: 62px;
-      padding: 6px 3px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-md);
-      background: var(--surface-raised);
+      aspect-ratio: 1 / 1;
+      padding: 4px 2px;
+      background: var(--surface-panel);
       color: var(--ink-dim);
       cursor: grab;
       user-select: none;
       touch-action: none;
-      transition: background 90ms var(--ease), border-color 90ms var(--ease),
-                  color 90ms var(--ease), transform 90ms var(--ease);
+      transition: background 70ms var(--ease), color 70ms var(--ease);
     }
-    .tile:hover {
-      background: #2c3038;
-      border-color: var(--line-strong);
-      color: var(--ink-strong);
-    }
-    .tile:active { transform: scale(0.96); }
-    .tile:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+    .tile:hover { background: var(--surface-raised); color: var(--ink-strong); }
+    .tile:active { background: var(--surface-active); }
+    .tile:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
 
     .tile__label {
-      display: flex;
-      align-items: baseline;
-      gap: 3px;
       max-width: 100%;
-      font-size: var(--text-xs);
+      font-size: var(--text-sm);
+      color: var(--ink);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .tile:hover .tile__label { color: var(--ink-strong); }
+
+    /* The shortcut letter sits in the corner, the way a keycap hint does in
+       an editor's command palette. */
     .tile__key {
+      position: absolute;
+      top: 3px;
+      right: 4px;
       color: var(--ink-faint);
       font-family: var(--font-mono);
       font-size: 9.5px;
+      line-height: 1;
     }
+    .tile { position: relative; }
     .tile:hover .tile__key { color: var(--ink-dim); }
 
+    .tile--filler { cursor: default; pointer-events: none; }
+    .tile--filler:hover { background: var(--surface-panel); }
+
     .hint {
-      margin: 12px 10px 0;
-      padding: 9px 10px;
-      border-radius: var(--radius-sm);
-      background: var(--surface-sunken);
+      margin: 10px 12px 0;
+      padding: 0;
       color: var(--ink-faint);
       font-size: var(--text-xs);
-      line-height: 1.6;
+      line-height: 1.7;
     }
 
     .no-match { padding: 24px 10px; text-align: center; color: var(--ink-faint); font-size: var(--text-sm); }
@@ -126,7 +137,6 @@ export class ForgePalette extends PanelElement {
   template() {
     return `
       <div class="panel-head">
-        ${icon('grid', 14)}
         <span class="panel-head__title">Elements</span>
       </div>
       <div class="search">
@@ -150,7 +160,9 @@ export class ForgePalette extends PanelElement {
     });
 
     const body = this.$('#body');
-    this.bind(body, 'pointerdown', (event) => this._onPointerDown(/** @type {PointerEvent} */ (event)));
+    this.bind(body, 'pointerdown', (event) =>
+      this._onPointerDown(/** @type {PointerEvent} */ (event))
+    );
     this.bind(body, 'click', (event) => this._onClick(/** @type {MouseEvent} */ (event)));
     this.bind(body, 'dblclick', (event) => this._onDoubleClick(/** @type {MouseEvent} */ (event)));
     this.bind(body, 'keydown', (event) => this._onKeyDown(/** @type {KeyboardEvent} */ (event)));
@@ -182,17 +194,18 @@ export class ForgePalette extends PanelElement {
           return `
             <section class="group" data-open="${open}" data-group="${esc(group.title)}">
               <button class="group__head" type="button">
+                <span class="group__caret">${icon('chevronDown', 14)}</span>
                 <span class="group__title">${esc(group.title)}</span>
-                <span class="group__caret">${icon('chevronDown', 12)}</span>
               </button>
               <div class="tiles">
                 ${group.items.map((item) => this._renderTile(item)).join('')}
+                ${fillers(group.items.length)}
               </div>
             </section>`;
         })
         .join('') +
-      `<p class="hint">Drag a tile onto the canvas, or double-click to drop it in.
-        Hold <span class="kbd">Alt</span> while dragging an element to duplicate it.</p>`;
+      `<p class="hint">Drag onto the canvas, or double-click to drop it in.
+        Hold <span class="kbd">Alt</span> while dragging to duplicate.</p>`;
   }
 
   /**
@@ -206,12 +219,9 @@ export class ForgePalette extends PanelElement {
               data-icon="${esc(item.icon)}"
               data-label="${esc(item.label)}"
               title="${esc(item.hint)}${item.shortcut ? ` — press ${item.shortcut}` : ''}">
-        ${icon(item.icon, 18)}
-        <span class="tile__label">
-          <span>${esc(item.label)}</span>${
-            item.shortcut ? `<span class="tile__key">${esc(item.shortcut)}</span>` : ''
-          }
-        </span>
+        ${icon(item.icon, 19)}
+        <span class="tile__label">${esc(item.label)}</span>
+        ${item.shortcut ? `<span class="tile__key">${esc(item.shortcut)}</span>` : ''}
       </button>`;
   }
 
@@ -281,4 +291,23 @@ export class ForgePalette extends PanelElement {
   }
 }
 
-customElements.define('forge-palette', ForgePalette);
+/** Tiles per row; must match `grid-template-columns` above. */
+const COLUMNS = 3;
+
+/**
+ * Blank cells padding a group's last row out to a full one.
+ *
+ * The grid draws its own hairlines by showing its background through 1px gaps,
+ * which is what keeps the tiles flush instead of floating. The cost is that a
+ * short last row would leave a strip of that background exposed — these fill
+ * it, and nothing else.
+ *
+ * @param {number} count how many real tiles the group has
+ * @returns {string}
+ */
+function fillers(count) {
+  const missing = (COLUMNS - (count % COLUMNS)) % COLUMNS;
+  return '<span class="tile tile--filler" aria-hidden="true"></span>'.repeat(missing);
+}
+
+customElements.define('dl-palette', DlPalette);

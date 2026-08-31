@@ -35,7 +35,8 @@ export class PanelElement extends HTMLElement {
     this._mounted = true;
 
     const style = document.createElement('style');
-    style.textContent = SHARED_CSS + '\n' + /** @type {typeof PanelElement} */ (this.constructor).styles;
+    style.textContent =
+      SHARED_CSS + '\n' + /** @type {typeof PanelElement} */ (this.constructor).styles;
     this.shadowRoot.append(style);
 
     const holder = document.createElement('div');
@@ -70,9 +71,7 @@ export class PanelElement extends HTMLElement {
    * @param {(payload: any) => void} handler
    */
   listen(topics, handler) {
-    const dispose = Array.isArray(topics)
-      ? app.onAny(topics, handler)
-      : app.on(topics, handler);
+    const dispose = Array.isArray(topics) ? app.onAny(topics, handler) : app.on(topics, handler);
     this._disposers.push(dispose);
   }
 

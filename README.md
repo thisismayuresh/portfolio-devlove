@@ -1,156 +1,189 @@
-# Forge
+# devlove
 
-A drag-and-drop website builder with a **Rust + WebAssembly core** and a
-**zero-dependency vanilla browser UI**.
+A drag-and-drop website builder written in **plain JavaScript** — no framework,
+no bundler, no build step, and no dependencies.
 
-The Rust crate owns the document: the node tree, every mutation, hit testing,
-snapping and the HTML/CSS compiler. The browser layer owns pixels and pointer
-events, and is built from nothing but standard Web Platform APIs — Custom
-Elements, Shadow DOM, Pointer Events, the HTML Drag and Drop API, `<iframe
-srcdoc>` and `postMessage`.
+Clone it, serve the folder, open the page. That is the whole setup. Every line
+that runs in the browser is a line you can read in this repository, unminified
+and untransformed, exactly as it was written.
 
-There is no React, no Vue, no Tailwind, no jQuery, no bundler, and no `npm
-install`. The only build step in the whole project compiles the Rust crate.
+- **The engine** (`js/engine/`) owns the document: the node tree, every
+  mutation, undo/redo, hit testing, snapping and the HTML/CSS compiler. It is
+  nine small modules that never touch the DOM, so all of it is unit-testable in
+  Node in milliseconds.
+- **A Web Worker** (`js/workers/`) does the one expensive thing — turning the
+  document into an HTML/CSS payload — so the main thread stays free while you
+  drag.
+- **The UI** is standard Web Platform: Custom Elements, Shadow DOM, Pointer
+  Events, `<iframe srcdoc>` and `postMessage`.
 
 ---
 
 ## Quick start
 
-One command. It checks the toolchain, installs whatever is missing, builds the
-engine and serves the editor.
-
-**Linux / macOS**
-
 ```bash
-./setup.sh --serve
-```
-
-**Windows (PowerShell)**
-
-```powershell
-.\setup.ps1 -Serve
-```
-
-Then open <http://127.0.0.1:8080/>.
-
-The scripts are safe to re-run — each step checks first and skips what is
-already installed. They prompt before installing anything; pass `--yes` / `-Yes`
-in CI. Useful flags:
-
-| Flag | Effect |
-| --- | --- |
-| `--serve` / `-Serve` | serve when the build finishes |
-| `--port 3000` / `-Port 3000` | pick the port |
-| `--dev` / `-Dev` | fast unoptimised build |
-| `--test` / `-Test` | run the Rust and browser test suites |
-| `--yes` / `-Yes` | never prompt |
-| `--help` / `-?` | usage |
-
-Prefer to drive it yourself? See [§2 Build and run](#2-build-and-run). Either
-way: re-run the build after changing anything in `src/`; changes under `js/`,
-`css/` or `index.html` need only a browser refresh.
-
----
-
-## 1. Requirements
-
-| Tool | Why | Check |
-| --- | --- | --- |
-| Rust (stable, 1.70+) | compiles the engine | `rustc --version` |
-| `wasm32-unknown-unknown` target | the WASM build target | `rustup target list --installed` |
-| `wasm-pack` 0.12+ | drives the build and emits the JS glue | `wasm-pack --version` |
-| Python 3.8+ | the bundled static server | `python --version` |
-
-Install them once:
-
-```bash
-# 1. Rust toolchain (https://rustup.rs)
-#    Windows: download and run rustup-init.exe
-#    macOS/Linux:
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# 2. The WebAssembly target
-rustup target add wasm32-unknown-unknown
-
-# 3. wasm-pack
-cargo install wasm-pack
-```
-
-Any static file server works instead of Python — the requirement is only that
-`.wasm` is served as `application/wasm` and the page is loaded over `http://`,
-not `file://`.
-
----
-
-## 2. Build and run
-
-Everything below is what `setup.sh` / `setup.ps1` do for you. Run it by hand
-when you want control over the individual steps.
-
-From the project root:
-
-```bash
-# Compile the engine to ./pkg (designer_engine.js + designer_engine_bg.wasm)
-wasm-pack build --target web
-
-# Serve the folder unbundled, with correct WASM MIME types
+git clone <this repo>
+cd project
 python serve.py
 ```
 
 Then open <http://127.0.0.1:8080/>.
 
-Useful variants:
+Any static file server works — the only requirement is `http://` rather than
+`file://`, because ES modules and Web Workers cannot load from the filesystem.
+If you have Node instead of Python: `npx serve` or `npx http-server` are fine.
+
+There is nothing to install and nothing to build. Change a file under `js/`,
+`css/` or `index.html` and refresh — `serve.py` sends `Cache-Control:
+no-store`, so you never fight a stale copy.
+
+### Or use the setup script
+
+It checks your environment and starts the server:
 
 ```bash
-wasm-pack build --target web --dev       # fast rebuild, unoptimised, keeps debug info
-wasm-pack build --target web --release   # the default; optimised, LTO, stripped
-python serve.py 3000                     # different port
-python serve.py 3000 0.0.0.0             # expose on the LAN
+./setup.sh --serve            # Linux / macOS
+.\setup.ps1 -Serve            # Windows PowerShell
 ```
 
-`--target web` is required. It emits a plain ES module that the browser
-imports directly, with no bundler in the loop. The UI never imports from
-`pkg/` except through [`js/core/wasm-bridge.js`](js/core/wasm-bridge.js).
-
-**Rebuild loop:** after changing anything in `src/`, re-run `wasm-pack build
---target web` and hard-refresh. After changing anything in `js/`, `css/` or
-`index.html`, just refresh — `serve.py` sends `Cache-Control: no-store`.
+| Flag                         | Effect                                     |
+| ---------------------------- | ------------------------------------------ |
+| `--serve` / `-Serve`         | serve when the checks pass                 |
+| `--port 3000` / `-Port 3000` | pick the port (default 8080)               |
+| `--test` / `-Test`           | run the unit tests, then the browser tests |
+| `--help` / `-?`              | usage                                      |
 
 ---
 
-## 3. What you can do in the editor
+## Requirements
 
-| Action | How |
-| --- | --- |
-| Add an element | Drag a tile from the left panel onto the canvas, double-click the tile, or press its letter (`S` `X` `K` `D` `H` `T` `I` `B` `L` `N`) |
-| Switch left panel | The icon rail — Elements or Layers |
-| Change canvas width | The device buttons in the canvas toolbar, or type a width |
-| Select | Click it on the canvas, or click its row in **Layers** |
-| Move | Drag it. `Shift` constrains to one axis, `Ctrl`/`⌘` disables snapping |
-| Duplicate while dragging | Hold `Alt` and start the drag |
-| Resize | Drag any of the eight handles. `Shift` locks the aspect ratio on corners |
-| Nest inside a container | Drag over it — the green outline shows the receiving container |
-| Reorder / reparent precisely | Drag rows in the **Layers** tree (above / into / below zones) |
-| Edit text | Double-click the element. `Enter` commits, `Escape` cancels |
-| Style | Everything in the right rail, including a raw **Custom CSS** escape hatch |
-| Change the page itself | Deselect (`Escape`) — the inspector switches to document settings |
-| Preview for real | **Preview** in the top bar, or `Ctrl+P` |
-| Ship it | **Export HTML** — one self-contained file, no runtime, no dependencies |
-| Keep working later | **Save** writes a `.forge.json`; the editor also autosaves to `localStorage` |
+| Tool             | Needed for                | Optional?                          |
+| ---------------- | ------------------------- | ---------------------------------- |
+| A modern browser | running the editor        | no                                 |
+| Python 3.8+      | the bundled static server | yes — any static server works      |
+| Node 20+         | running the test suites   | yes — not needed to use the editor |
+| npm packages     | ESLint and Prettier       | yes — nothing the editor needs     |
+
+The editor itself has **zero** runtime dependencies.
+
+---
+
+## What you can do in the editor
+
+| Action                       | How                                                                                                               |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Add an element               | Drag a row from the left panel onto the canvas, double-click it, or press its letter — the palette shows each one |
+| Switch left panel            | The icon rail — Elements or Layers                                                                                |
+| Change canvas width          | The device buttons in the canvas toolbar, or type a width                                                         |
+| Select                       | Click it on the canvas, or click its row in **Layers**                                                            |
+| Move                         | Drag it. `Shift` constrains to one axis, `Ctrl`/`⌘` disables snapping                                             |
+| Duplicate while dragging     | Hold `Alt` and start the drag                                                                                     |
+| Resize                       | Drag any of the eight handles. `Shift` locks the aspect ratio on corners                                          |
+| Nest inside a container      | Drag over it — the green outline shows the receiving container                                                    |
+| Reorder / reparent precisely | Drag rows in the **Layers** tree (above / into / below zones)                                                     |
+| Edit text                    | Double-click the element. `Enter` commits, `Escape` cancels                                                       |
+| Style                        | Everything in the right rail, including a raw **Custom CSS** escape hatch                                         |
+| Change the page itself       | Deselect (`Escape`) — the inspector switches to document settings                                                 |
+| Preview for real             | **Preview** in the top bar, or `Ctrl+P`                                                                           |
+| Ship it                      | **Export HTML** — one self-contained file, no runtime, no dependencies                                            |
+| Keep working later           | **Save** writes a `.devlove.json`; the editor also autosaves to `localStorage`                                    |
+
+### What you can build with
+
+Twenty primitives, grouped the way the palette groups them.
+
+| Group   | Elements                                                     |
+| ------- | ------------------------------------------------------------ |
+| Layout  | Section, Box, Stack (flex row/column), Grid, Divider, Spacer |
+| Content | Heading, Text, List, Table, Quote, Code                      |
+| Media   | Image, Video                                                 |
+| Forms   | Form, Button, Link, Label, Input, Textarea                   |
+
+**Tables and lists are edited as text.** A table has a Columns field
+(`Name | Role | Year`) and a Rows field, one row per line, cells separated by
+`|`. A list has one item per line and a Numbered toggle. Modelling every cell
+as its own draggable node would fill the Layers tree with hundreds of rows you
+never want to select; a text field is both less code and faster to edit.
+
+**Code blocks are highlighted.** Pick TypeScript, JavaScript, JSON, HTML, CSS,
+Shell or Python and the block is tokenised at compile time — no highlighter
+library ships with your page, just spans and a few colours.
+
+**Buttons and links do things.** Set an action in the inspector: scroll to a
+section, open a URL (optionally in a new tab), show/hide a section, copy text
+to the clipboard, submit the form, or go back. Give the target section an
+**anchor** and it becomes the element's `id`. A page that uses no actions
+exports with no JavaScript at all; one that does gets a ~2KB script and nothing
+else.
+
+**Images and video can be uploaded.** Drag a file onto the canvas, or use the
+Upload button beside any Source field. Files are embedded as `data:` URIs so
+the export stays one self-contained file — which is also why anything over
+1.5MB is refused with an explanation rather than quietly breaking autosave.
+
+### Everything you can change
+
+| Group           | Properties                                                                                               |
+| --------------- | -------------------------------------------------------------------------------------------------------- |
+| Size & position | width, height, x, y, min height, max width, aspect ratio, hug height                                     |
+| Child layout    | Free / Row / Column / Grid, columns, gap, justify, align, wrap, overflow                                 |
+| Typography      | size, line height, weight, tracking, alignment, italic, underline, case, colour, font stack, list marker |
+| Fill & border   | colour, background image (upload or URL), fit, anchor, repeat, radius, border width / style / colour     |
+| Spacing         | padding and margin, as a shorthand or per side                                                           |
+| Effects         | opacity, box shadow, text shadow, filter, backdrop blur, rotate, scale, transition, cursor, stack order  |
+| Media           | object fit and anchor, for images and video                                                              |
+| On click        | the actions above, on any element                                                                        |
+| Layer           | name, anchor, hidden, locked                                                                             |
+| Page            | title, description, language, width, min height, background, font stack                                  |
+
+Anything not in that list is one line in the **Custom CSS** field, which takes
+any declaration and applies it to that element alone.
+
+### Starting points
+
+The **Templates** panel in the icon rail carries four documents, each built
+from the same elements you have:
+
+| Template            | What it is                                                           |
+| ------------------- | -------------------------------------------------------------------- |
+| Developer portfolio | Hero, stack, a table of projects, and a working contact form         |
+| SaaS landing page   | Dark product page: features, pricing comparison, FAQ, sign-up        |
+| Documentation       | Sidebar of anchors beside an article with code and a reference table |
+| Blank page          | An empty canvas with the page set up and nothing on it               |
+
+Every one has a working navigation bar whose links scroll to real anchors, so
+hitting **Preview** shows you a page that behaves, not a picture of one.
+Applying a template replaces the document in a single undo step.
+
+Templates live in [`js/templates/`](js/templates/) and are plain data. Adding
+one is a file and a row in [`js/templates/index.js`](js/templates/index.js).
+
+### The interface
+
+The editor is themed after VS Code's Dark Modern, on purpose. It sits beside
+your editor, so it should read as part of the same furniture: square corners,
+grey chrome, and colour used only where it carries information — focus rings,
+the one primary button, and the canvas selection marker. Active states
+elsewhere are drawn the way VS Code's activity bar draws them, with a white
+icon and a border rather than a coloured pill.
+
+Every colour and metric is a custom property in
+[`css/tokens.css`](css/tokens.css). Because custom properties cross shadow
+boundaries, editing that one file retints the entire tool.
 
 ### Keyboard
 
-| Keys | Action |
-| --- | --- |
-| `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo |
-| `Delete` / `Backspace` | Delete selection |
-| `Ctrl+D` | Duplicate |
-| `Arrows` / `Shift+Arrows` | Nudge 1px / 10px |
-| `Ctrl+[` / `Ctrl+]` | Send backward / bring forward |
-| `Ctrl+P` | Toggle preview |
-| `Ctrl+0`, `Ctrl+±`, `Ctrl+scroll` | Zoom |
-| `Escape` | Deselect, or cancel a drag |
-| `S X K D H T I B L N` | Add section / box / stack / divider / heading / text / image / button / link / input |
+| Keys                              | Action                                                                |
+| --------------------------------- | --------------------------------------------------------------------- |
+| `Ctrl+Z` / `Ctrl+Shift+Z`         | Undo / redo                                                           |
+| `Delete` / `Backspace`            | Delete selection                                                      |
+| `Ctrl+D`                          | Duplicate                                                             |
+| `Arrows` / `Shift+Arrows`         | Nudge 1px / 10px                                                      |
+| `Ctrl+[` / `Ctrl+]`               | Send backward / bring forward                                         |
+| `Ctrl+P`                          | Toggle preview                                                        |
+| `Ctrl+0`, `Ctrl+±`, `Ctrl+scroll` | Zoom                                                                  |
+| `Escape`                          | Deselect, or cancel a drag                                            |
+| A single letter                   | Add that element — the letter is shown beside its name in the palette |
 
 Bindings live in one table in [`js/core/shortcuts.js`](js/core/shortcuts.js).
 The single-letter element keys are generated from
@@ -159,133 +192,183 @@ key can never disagree.
 
 ---
 
-## 4. Layout
+## Layout
 
 ```
 project/
-├── Cargo.toml                    crate manifest (3 Rust deps, 0 JS deps)
-├── setup.sh / setup.ps1          cross-platform install + build + serve
-├── serve.py                      static server with correct WASM MIME types
 ├── index.html                    the shell; every panel is a custom element
+├── serve.py                      static server, no dependencies
+├── setup.sh / setup.ps1          environment check + serve
+├── package.json                  optional: linting and test scripts only
 │
-├── src/                          ── the Rust engine ──
-│   ├── lib.rs                    the wasm-bindgen boundary; the only pub API
-│   ├── node.rs                   WebNode, NodeKind, LayoutMode, Style
-│   ├── engine.rs                 tree ops, history, hit testing, geometry
-│   └── compiler.rs               AST → HTML/CSS, plus the in-frame runtime
+├── js/
+│   ├── main.js                   entry point
+│   │
+│   ├── engine/                   ── the document model, no DOM ──
+│   │   ├── index.js              the Engine facade — all the UI imports
+│   │   ├── kinds.js              THE ELEMENT TABLE — add a primitive here
+│   │   ├── style.js              THE STYLE TABLE — add a CSS property here
+│   │   ├── node.js               what a node is, and how one property is set
+│   │   ├── document.js           the node arena: add/delete/move/reparent
+│   │   ├── history.js            undo/redo as document snapshots
+│   │   ├── geometry.js           hit testing, drop routing, snapping
+│   │   ├── compiler.js           document → HTML/CSS
+│   │   ├── preview-runtime.js    the script that runs inside the preview frame
+│   │   └── values.js             formatting, parsing, escaping
+│   │
+│   ├── workers/
+│   │   └── compile.worker.js     stateless: document in, HTML string out
+│   │
+│   ├── core/
+│   │   ├── app.js                the only module that talks to the engine
+│   │   ├── compile-service.js    the worker client, with an inline fallback
+│   │   ├── emitter.js            30-line pub/sub — the whole "state layer"
+│   │   ├── drag-controller.js    pointer-based cross-panel dragging
+│   │   ├── shortcuts.js          the keyboard table
+│   │   └── starter-template.js   the document a first-time visitor sees
+│   │
+│   ├── registry/
+│   │   ├── elements.js           palette metadata, keyed by element kind
+│   │   └── inspector-schema.js   declarative property panel
+│   │
+│   ├── ui/
+│   │   ├── icons.js              16×16 inline SVG set
+│   │   ├── shared-styles.js      shadow-DOM style primitives
+│   │   ├── panel-element.js      base class for every panel
+│   │   └── components/           dl-toolbar, dl-palette, dl-layers, dl-canvas,
+│   │                             dl-inspector, dl-rail, dl-status
+│   │
+│   └── util/files.js             download / open, on Blob and <input type=file>
 │
 ├── css/
 │   ├── tokens.css                every colour and metric in the editor
 │   └── shell.css                 the outer grid and the boot screen
 │
-├── js/                           ── the browser layer ──
-│   ├── main.js                   entry point
-│   ├── core/
-│   │   ├── app.js                the only module that talks to WASM
-│   │   ├── wasm-bridge.js        loads pkg/, with actionable failure messages
-│   │   ├── emitter.js            30-line pub/sub — the whole "state layer"
-│   │   ├── shortcuts.js          the keyboard table
-│   │   └── starter-template.js   the document a first-time visitor sees
-│   ├── registry/
-│   │   ├── elements.js           palette metadata, keyed by engine kind
-│   │   └── inspector-schema.js   declarative property panel
-│   ├── ui/
-│   │   ├── icons.js              16×16 inline SVG set
-│   │   ├── shared-styles.js      shadow-DOM style primitives
-│   │   ├── panel-element.js      base class for every panel
-│   │   └── components/           toolbar, palette, layers, canvas, inspector, status
-│   └── util/files.js             download / open, on Blob and <input type=file>
-│
 ├── tests/
-│   ├── run-browser-tests.mjs     zero-dependency CDP runner (Node 22+)
-│   └── smoke.html                engine ↔ preview-frame contract
+│   ├── unit/engine.test.js       node:test — the whole engine, no browser
+│   ├── run-browser-tests.mjs     zero-dependency CDP runner (Node 20+)
+│   └── smoke.html                engine ↔ worker ↔ preview-frame contract
 │
-├── docs/ARCHITECTURE.md          how the two halves fit together
+├── docs/ARCHITECTURE.md          how the parts fit together
 └── CONTRIBUTING.md               how to add an element, a property, a panel
 ```
 
 ---
 
-## 4a. Tests
+## Tests
 
 ```bash
-cargo test                        # engine logic, no browser needed
-node tests/run-browser-tests.mjs  # real Chrome, real input events
+node --test "tests/unit/*.test.js"   # the engine — fast, no browser
+node tests/run-browser-tests.mjs     # real Chrome, real input events
 node tests/run-browser-tests.mjs --headful   # watch it drive the editor
 ```
 
-The browser runner starts `serve.py`, launches Chrome/Chromium/Edge with the
-DevTools protocol, and asserts against the live editor. It drives the canvas
-with genuine `Input.dispatchMouseEvent` events, so "does dragging work" is a
-question the suite can actually answer — synthetic `dispatchEvent` calls are
-untrusted and prove nothing.
+Neither needs `npm install`.
+
+The unit suite covers the engine: tree operations, history, property
+validation, geometry, the compiler's escaping, and project-file repair. It runs
+in well under a second, because the engine never touches the DOM.
+
+The browser suite covers what only a browser can answer — whether dragging,
+dropping and the preview frame's measurement loop actually work. It starts
+`serve.py`, launches Chrome/Chromium/Edge over the DevTools protocol, and
+drives the canvas with genuine `Input.dispatchMouseEvent` events. Synthetic
+`dispatchEvent` calls are untrusted and prove nothing about a real drag.
 
 Set `CHROME_PATH` if your browser is somewhere unusual.
 
 Two traps the runner exists to avoid, both of which produce convincing false
 failures:
 
-* `chrome --dump-dom` snapshots at the load event, long before WebAssembly has
-  instantiated;
-* `--virtual-time-budget` fixes that but then stops loading new frames once the
-  clock jumps, so anything created after an async fetch never runs.
+- `chrome --dump-dom` snapshots at the load event, long before the preview
+  frame has reported its first measurements;
+- `--virtual-time-budget` fixes that but then stops loading new frames once the
+  clock jumps, so anything created after an async step never runs.
 
 It also calls `Page.bringToFront` on every tab, because Chrome does not run
-`requestAnimationFrame` in a background tab and the preview frame's measurement
-loop is rAF-driven.
+`requestAnimationFrame` in a background tab and the frame's measurement loop is
+rAF-driven.
+
+### Linting (optional)
+
+```bash
+npm install
+npm run lint
+npm run format
+```
+
+The rules catch mistakes, not style. Style is Prettier's job.
 
 ---
 
-## 5. How it works, briefly
+## How it works, briefly
 
-1. **The engine holds the truth.** A `DesignerEngine` in WASM memory owns a
-   flat arena of `WebNode`s linked by id. JavaScript holds one handle to it and
-   never mirrors the document.
-2. **The preview is a sandboxed frame.** The engine compiles the tree into one
-   HTML string; the canvas assigns it to `iframe.srcdoc`. The frame runs with
-   `sandbox="allow-scripts"`, so the page being designed has an opaque origin
-   and cannot reach the editor.
-3. **Gestures never recompile.** Dragging an element asks the engine for that
-   one node's declaration block and `postMessage`s it into the frame, which
-   assigns `element.style.cssText`. Full recompiles are reserved for
-   structural changes.
-4. **Geometry comes back from the frame.** The compiled runtime reports every
-   node's measured box on a `requestAnimationFrame`-coalesced schedule. Those
-   rects go straight back into the engine, which answers hit tests, drop-target
-   queries and snap-guide queries against real measurements — including for
-   flex-flowed children, whose positions no model could predict.
+1. **The engine holds the truth.** A plain-JavaScript `Engine` owns a flat map
+   of nodes linked by id. The UI holds one reference to it and never mirrors
+   the document.
+2. **Compiling happens in a worker.** `core/app.js` hands the whole document to
+   `workers/compile.worker.js`, which returns one HTML string. The worker is
+   stateless — there is no second copy of anything to keep in sync — and it
+   imports the _same_ compiler the main thread uses, so the two cannot drift.
+   If a worker cannot be created, the identical function runs inline.
+3. **The preview is a sandboxed frame.** The compiled string goes to
+   `iframe.srcdoc`. The frame runs with `sandbox="allow-scripts"`, so the page
+   being designed has an opaque origin and cannot reach the editor.
+4. **Gestures never recompile.** Dragging an element asks the engine for that
+   one node's declaration block — synchronously, on the main thread — and
+   `postMessage`s it into the frame, which assigns `element.style.cssText`.
+   Full recompiles are reserved for structural changes.
+5. **Geometry comes back from the frame.** The runtime reports every node's
+   measured box on a `requestAnimationFrame`-coalesced schedule. Those rects go
+   into the engine, which answers hit tests, drop-target queries and snap-guide
+   queries against real measurements — including for flex-flowed children,
+   whose positions no model could predict.
 
 The details are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ---
 
-## 6. Troubleshooting
+## Contributing
 
-**Boot screen says the engine could not start**
-`./pkg` is missing. Run `wasm-pack build --target web`.
+Most additions are one table row.
 
-**`incorrect response MIME type` / `magic word`**
-The `.wasm` file is being served as `application/octet-stream`. Use
-`python serve.py`, which sets `application/wasm`.
+- **A new element** is an entry in `ELEMENT_KINDS` in
+  [`js/engine/kinds.js`](js/engine/kinds.js), plus a palette tile in
+  [`js/registry/elements.js`](js/registry/elements.js).
+- **A new CSS property** is an entry in `STYLE_FIELDS` in
+  [`js/engine/style.js`](js/engine/style.js), plus a field in
+  [`js/registry/inspector-schema.js`](js/registry/inspector-schema.js).
 
-**Blank page, console mentions `file://`**
-ES modules and WebAssembly cannot load from the filesystem. Serve over HTTP.
-
-**`wasm-pack: command not found`**
-`cargo install wasm-pack`, then make sure `~/.cargo/bin` is on your `PATH`.
-
-**`wasm-validator error … Bulk memory operations require bulk memory`**
-Rust 1.82+ emits instructions the bundled `wasm-opt` validates with off by
-default. `Cargo.toml` already passes the matching `--enable-*` flags under
-`[package.metadata.wasm-pack.profile.release]`; if a future `wasm-opt` rejects
-one of them, drop that flag or set `wasm-opt = false` there.
-
-**Changes to `src/` do nothing**
-`wasm-pack build` must be re-run; the browser only ever sees the compiled
-`pkg/` output.
+Neither requires touching the compiler, the canvas, the inspector or the drag
+code — none of them branch on element type. Walkthroughs for both, and for
+adding a panel, a shortcut or an engine method, are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
-## 7. Licence
+## Troubleshooting
+
+**Blank page, console mentions `file://`**
+ES modules cannot load from the filesystem. Serve over HTTP: `python serve.py`.
+
+**Status bar says "Inline" rather than "Worker"**
+The compile worker could not start, so compiling is happening on the main
+thread. Everything still works, just less smoothly on a large document. The
+console has the reason — usually a Content-Security-Policy, or a page opened
+over `file://`.
+
+**A change to `js/` does nothing**
+Hard-refresh. `serve.py` sends `no-store`, but a different server may not.
+
+**`SyntaxError: Unexpected token '<'` in the console**
+Your server is returning `index.html` for a missing file. Check the path in the
+failing import.
+
+**The browser tests cannot find Chrome**
+Set `CHROME_PATH` to the executable.
+
+---
+
+## Licence
 
 MIT. See [LICENSE](LICENSE).

@@ -3,17 +3,18 @@
  * overlay.
  *
  * Nothing here knows what an element *is*. The overlay converts pointer
- * positions into page coordinates, asks the Rust engine what lives there, and
+ * positions into page coordinates, asks the engine what lives there, and
  * forwards the resulting intent (select / move / resize / drop) back to it.
  * The frame itself is never touched directly — it is redrawn from compiled
  * output, or patched one declaration block at a time during a gesture.
  *
- * @module ui/components/forge-canvas
+ * @module ui/components/dl-canvas
  */
 
 import { PanelElement } from '../panel-element.js';
 import { icon } from '../icons.js';
 import { app } from '../../core/app.js';
+import { MAX_EMBED_BYTES, formatSize, readAsDataUrl } from '../../util/files.js';
 
 /** Pointer travel, in page pixels, before a press becomes a drag. */
 const DRAG_THRESHOLD = 3;
@@ -41,7 +42,7 @@ export const DEVICES = Object.freeze([
   { id: 'desktop', icon: 'desktop', label: 'Desktop', width: 1512 },
 ]);
 
-export class ForgeCanvas extends PanelElement {
+export class DlCanvas extends PanelElement {
   static styles = `
     .root {
       display: flex;
@@ -63,22 +64,32 @@ export class ForgeCanvas extends PanelElement {
     }
     :host([data-mode="preview"]) .toolbar { display: none; }
 
-    .page-chip {
+    /* A page tab, not a chip: this is where multi-page support will land, and
+       the shape should already say so. */
+    .page-tabs { display: flex; align-items: stretch; height: 100%; flex: 0 0 auto; }
+    .page-tab {
+      position: relative;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      height: 24px;
-      padding: 0 9px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      background: var(--surface-raised);
-      color: var(--ink);
-      font-size: var(--text-sm);
-      max-width: 190px;
+      gap: 7px;
+      height: 100%;
+      padding: 0 14px;
+      color: var(--ink-strong);
+      font-size: var(--text-md);
+      max-width: 210px;
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
+      background: var(--surface-panel);
     }
+    .page-tab::after {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; top: 0;
+      height: 1px;
+      background: var(--ink-strong);
+    }
+    .page-tab svg { color: var(--ink-dim); }
 
     .toolbar__group { display: flex; align-items: center; gap: 1px; }
     .toolbar__spacer { flex: 1 1 auto; }
@@ -87,57 +98,25 @@ export class ForgeCanvas extends PanelElement {
     .devices {
       display: flex;
       gap: 1px;
-      padding: 2px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      background: var(--surface-input);
+      padding: 1px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface-sunken);
     }
     .devices button {
       display: grid;
       place-items: center;
-      width: 25px;
+      width: 26px;
       height: 20px;
-      border-radius: 3px;
       color: var(--ink-faint);
       transition: color 90ms var(--ease), background 90ms var(--ease);
     }
     .devices button:hover { color: var(--ink); background: var(--surface-hover); }
-    .devices button[aria-pressed="true"] { color: var(--accent-ink); background: var(--accent); }
-
-    .width-readout {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      color: var(--ink-dim);
-      font-size: var(--text-sm);
-    }
-    .width-readout input {
-      width: 50px;
-      height: 22px;
-      padding: 0 5px;
-      border: 1px solid transparent;
-      border-radius: var(--radius-sm);
-      background: transparent;
-      color: var(--ink);
-      font: inherit;
-      font-variant-numeric: tabular-nums;
-      text-align: right;
-      -moz-appearance: textfield;
-    }
-    .width-readout input::-webkit-outer-spin-button,
-    .width-readout input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .width-readout input:hover { border-color: var(--line); background: var(--surface-input); }
-    .width-readout input:focus {
-      outline: none;
-      border-color: var(--accent);
-      background: var(--surface-input);
-    }
+    .devices button[aria-pressed="true"] { color: var(--ink-strong); background: var(--surface-raised); }
 
     .zoom { display: flex; align-items: center; gap: 1px; }
     .zoom__value {
       min-width: 46px;
       height: 22px;
-      border-radius: 3px;
       color: var(--ink);
       font-size: var(--text-sm);
       font-variant-numeric: tabular-nums;
@@ -164,10 +143,58 @@ export class ForgeCanvas extends PanelElement {
       justify-content: center;
       min-width: min-content;
       min-height: 100%;
-      padding: 32px 40px 120px;
+      padding: 48px 40px 120px;
     }
 
-    .page-box { position: relative; flex: 0 0 auto; }
+    /* The checkerboard shows through wherever the page itself is transparent,
+       the same signal an image editor gives. */
+    .page-box {
+      position: relative;
+      flex: 0 0 auto;
+      background-image:
+        linear-gradient(45deg, #34363d 25%, transparent 25%, transparent 75%, #34363d 75%),
+        linear-gradient(45deg, #34363d 25%, transparent 25%, transparent 75%, #34363d 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 8px 8px;
+      box-shadow: var(--canvas-page-shadow);
+    }
+
+    /* Floating, editable width readout pinned above the page. Keeping it here
+       rather than in the toolbar puts the number next to the thing it
+       describes, and keeps the toolbar down to actions. */
+    .page-meta {
+      position: absolute;
+      right: 0;
+      top: -28px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--ink-dim);
+      font-size: var(--text-sm);
+      user-select: none;
+    }
+    .page-meta input {
+      width: 46px;
+      height: 20px;
+      padding: 0 4px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      -moz-appearance: textfield;
+    }
+    .page-meta input::-webkit-outer-spin-button,
+    .page-meta input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .page-meta input:hover { border-color: var(--line); background: var(--surface-input); }
+    .page-meta input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: var(--surface-input);
+    }
+    :host([data-mode="preview"]) .page-meta { display: none; }
 
     .scaler {
       position: absolute;
@@ -182,7 +209,6 @@ export class ForgeCanvas extends PanelElement {
       height: 100%;
       border: 0;
       background: #fff;
-      box-shadow: var(--canvas-page-shadow);
     }
     :host([data-mode="design"]) .frame { pointer-events: none; }
 
@@ -204,29 +230,31 @@ export class ForgeCanvas extends PanelElement {
 
     .marker--hover { outline: 1px solid var(--marker-hover); }
     .marker--drop {
-      outline: 2px solid var(--marker-drop);
-      background: rgba(70, 185, 90, 0.08);
-      border-radius: 2px;
+      outline: 1px solid var(--marker-drop);
+      background: rgba(137, 209, 133, 0.1);
     }
     .marker--select { outline: 1.5px solid var(--marker-select); }
 
+    /* Square handles, matching every other corner in the tool. They are the
+       one place a filled accent is still right: a resize handle has to be
+       findable against arbitrary page content underneath it. */
     .handle {
       position: absolute;
       width: 8px;
       height: 8px;
       background: #fff;
-      border: 1.5px solid var(--marker-select);
-      border-radius: 2px;
+      border: 1px solid var(--marker-select);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
       pointer-events: auto;
     }
-    .handle[data-h="nw"] { top: -4.5px; left: -4.5px; cursor: nwse-resize; }
-    .handle[data-h="n"]  { top: -4.5px; left: 50%; margin-left: -4px; cursor: ns-resize; }
-    .handle[data-h="ne"] { top: -4.5px; right: -4.5px; cursor: nesw-resize; }
-    .handle[data-h="e"]  { top: 50%; right: -4.5px; margin-top: -4px; cursor: ew-resize; }
-    .handle[data-h="se"] { bottom: -4.5px; right: -4.5px; cursor: nwse-resize; }
-    .handle[data-h="s"]  { bottom: -4.5px; left: 50%; margin-left: -4px; cursor: ns-resize; }
-    .handle[data-h="sw"] { bottom: -4.5px; left: -4.5px; cursor: nesw-resize; }
-    .handle[data-h="w"]  { top: 50%; left: -4.5px; margin-top: -4px; cursor: ew-resize; }
+    .handle[data-h="nw"] { top: -5.5px; left: -5.5px; cursor: nwse-resize; }
+    .handle[data-h="n"]  { top: -5.5px; left: 50%; margin-left: -5px; cursor: ns-resize; }
+    .handle[data-h="ne"] { top: -5.5px; right: -5.5px; cursor: nesw-resize; }
+    .handle[data-h="e"]  { top: 50%; right: -5.5px; margin-top: -5px; cursor: ew-resize; }
+    .handle[data-h="se"] { bottom: -5.5px; right: -5.5px; cursor: nwse-resize; }
+    .handle[data-h="s"]  { bottom: -5.5px; left: 50%; margin-left: -5px; cursor: ns-resize; }
+    .handle[data-h="sw"] { bottom: -5.5px; left: -5.5px; cursor: nesw-resize; }
+    .handle[data-h="w"]  { top: 50%; left: -5.5px; margin-top: -5px; cursor: ew-resize; }
 
     .tag {
       position: absolute;
@@ -234,7 +262,6 @@ export class ForgeCanvas extends PanelElement {
       align-items: center;
       height: 17px;
       padding: 0 6px;
-      border-radius: 3px 3px 0 0;
       background: var(--marker-select);
       color: #fff;
       font-size: 10px;
@@ -249,7 +276,6 @@ export class ForgeCanvas extends PanelElement {
       position: absolute;
       display: none;
       padding: 2px 6px;
-      border-radius: 3px;
       background: var(--marker-select);
       color: #fff;
       font-family: var(--font-mono);
@@ -282,7 +308,7 @@ export class ForgeCanvas extends PanelElement {
       color: #0f1729;
       white-space: pre-wrap;
       overflow: hidden;
-      box-shadow: 0 0 0 3px var(--accent-wash);
+      box-shadow: 0 0 0 1px var(--marker-select);
       pointer-events: auto;
     }
     .text-editor[data-on="true"] { display: block; }
@@ -301,7 +327,9 @@ export class ForgeCanvas extends PanelElement {
   template() {
     return `
       <div class="toolbar">
-        <span class="page-chip">${icon('frame', 12)}<span id="pageName">Page</span></span>
+        <span class="page-tabs">
+          <span class="page-tab">${icon('frame', 13)}<span id="pageName">Page</span></span>
+        </span>
 
         <span class="toolbar__sep"></span>
 
@@ -322,12 +350,6 @@ export class ForgeCanvas extends PanelElement {
           ).join('')}
         </span>
 
-        <span class="width-readout">
-          <input id="widthInput" type="number" min="240" max="6000" step="1"
-                 aria-label="Canvas width in pixels" />
-          <span>px</span>
-        </span>
-
         <span class="toolbar__spacer"></span>
 
         <span class="zoom">
@@ -341,6 +363,11 @@ export class ForgeCanvas extends PanelElement {
       <div class="viewport scroll" id="viewport">
         <div class="pad">
           <div class="page-box" id="pageBox">
+            <span class="page-meta">
+              ${icon('desktop', 13)}
+              <input id="widthInput" type="number" min="240" max="6000" step="1"
+                     aria-label="Canvas width in pixels" /><span>px</span>
+            </span>
             <div class="scaler" id="scaler">
               <iframe class="frame" id="frame" title="Page preview"
                       sandbox="allow-scripts allow-forms allow-popups allow-modals"></iframe>
@@ -427,7 +454,7 @@ export class ForgeCanvas extends PanelElement {
     }
     const page = app.getPage();
     this._pageWidth = Number(page.width) || 1280;
-    this._pageMinHeight = Number(page.min_height) || 860;
+    this._pageMinHeight = Number(page.minHeight) || 860;
     this._pageTitle = page.title || 'Page';
   }
 
@@ -596,8 +623,12 @@ export class ForgeCanvas extends PanelElement {
   // ============================================================= pointer ===
 
   _wirePointer() {
-    this.bind(this.overlay, 'pointerdown', (e) => this._onPointerDown(/** @type {PointerEvent} */ (e)));
-    this.bind(this.overlay, 'pointermove', (e) => this._onPointerMove(/** @type {PointerEvent} */ (e)));
+    this.bind(this.overlay, 'pointerdown', (e) =>
+      this._onPointerDown(/** @type {PointerEvent} */ (e))
+    );
+    this.bind(this.overlay, 'pointermove', (e) =>
+      this._onPointerMove(/** @type {PointerEvent} */ (e))
+    );
     this.bind(this.overlay, 'pointerup', (e) => this._onPointerUp(/** @type {PointerEvent} */ (e)));
     this.bind(this.overlay, 'pointercancel', () => this._endGesture());
     this.bind(this.overlay, 'pointerleave', () => {
@@ -607,6 +638,80 @@ export class ForgeCanvas extends PanelElement {
     });
     this.bind(this.overlay, 'dblclick', (e) => this._onDoubleClick(/** @type {MouseEvent} */ (e)));
     this.bind(this.overlay, 'contextmenu', (e) => e.preventDefault());
+
+    // Dropping an image file from the desktop is the one place this codebase
+    // uses the native drag-and-drop API. Element dragging deliberately does
+    // not (see CONTRIBUTING) — but a file coming from outside the browser has
+    // no other event to arrive on, so there is no alternative to weigh.
+    this.bind(this.overlay, 'dragover', (e) => this._onFileDragOver(/** @type {DragEvent} */ (e)));
+    this.bind(this.overlay, 'dragleave', () => this._setMarker('#dropMarker', null));
+    this.bind(this.overlay, 'drop', (e) => this._onFileDrop(/** @type {DragEvent} */ (e)));
+  }
+
+  // ========================================================== file drops ===
+
+  /**
+   * @param {DragEvent} event
+   * @returns {boolean} whether the drag is carrying files we can use
+   */
+  _carriesFiles(event) {
+    return Array.from(event.dataTransfer?.types || []).includes('Files');
+  }
+
+  /** @param {DragEvent} event */
+  _onFileDragOver(event) {
+    if (!this._carriesFiles(event)) {
+      return;
+    }
+    // Without both of these the browser navigates away to the dropped file.
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+
+    this._previewDropTarget(this._toPagePoint(event), null, null);
+  }
+
+  /** @param {DragEvent} event */
+  async _onFileDrop(event) {
+    if (!this._carriesFiles(event)) {
+      return;
+    }
+    event.preventDefault();
+    this._setMarker('#dropMarker', null);
+
+    const files = Array.from(event.dataTransfer.files || []);
+    const media = files.filter(
+      (file) => file.type.startsWith('image/') || file.type.startsWith('video/')
+    );
+    if (media.length === 0) {
+      app.setStatus('Only image and video files can be dropped onto the canvas', 'danger');
+      return;
+    }
+
+    const point = this._toPagePoint(event);
+    const parent = app.engine.dropTarget(point.x, point.y);
+    const [localX, localY] = app.engine.toLocalPoint(parent, point.x, point.y);
+
+    // Placed in a row rather than stacked, so dropping four at once gives four
+    // visible elements instead of one on top of three.
+    let offset = 0;
+    for (const file of media) {
+      if (file.size > MAX_EMBED_BYTES) {
+        app.setStatus(
+          `${file.name} is ${formatSize(file.size)}. Files are embedded in the page, ` +
+            `so keep them under ${formatSize(MAX_EMBED_BYTES)}.`,
+          'danger'
+        );
+        continue;
+      }
+      const kind = file.type.startsWith('video/') ? 'video' : 'image';
+      const id = app.addElement(kind, parent, Math.round(localX + offset), Math.round(localY));
+      if (id) {
+        app.setProperty(id, 'src', await readAsDataUrl(file));
+        app.setProperty(id, 'name', file.name.replace(/\.[^.]+$/, ''));
+        offset += 24;
+      }
+    }
+    app.setStatus(media.length === 1 ? `Added ${media[0].name}` : `Added ${media.length} files`);
   }
 
   /**
@@ -631,7 +736,9 @@ export class ForgeCanvas extends PanelElement {
    */
   _isOverViewport(clientX, clientY) {
     const box = this.viewport.getBoundingClientRect();
-    return clientX >= box.left && clientX <= box.right && clientY >= box.top && clientY <= box.bottom;
+    return (
+      clientX >= box.left && clientX <= box.right && clientY >= box.top && clientY <= box.bottom
+    );
   }
 
   /** @param {PointerEvent} event */
@@ -694,7 +801,7 @@ export class ForgeCanvas extends PanelElement {
   _capture(pointerId) {
     try {
       this.overlay.setPointerCapture(pointerId);
-    } catch (error) {
+    } catch {
       // No active pointer with that id — the gesture still works via bubbling.
     }
   }
@@ -742,7 +849,7 @@ export class ForgeCanvas extends PanelElement {
     if (this._gesture && this._gesture.pointerId !== undefined) {
       try {
         this.overlay.releasePointerCapture(this._gesture.pointerId);
-      } catch (error) {
+      } catch {
         // Capture may already be gone (pointercancel); nothing to release.
       }
     }
@@ -842,9 +949,9 @@ export class ForgeCanvas extends PanelElement {
    */
   _localPoint(parentId, pageX, pageY) {
     try {
-      return JSON.parse(app.engine.toLocalPoint(parentId, pageX, pageY));
+      return app.engine.toLocalPoint(parentId, pageX, pageY);
     } catch (error) {
-      console.warn('[canvas] toLocalPoint failed', error);
+      console.warn('[devlove:canvas] toLocalPoint failed', error);
       return [pageX, pageY];
     }
   }
@@ -935,9 +1042,9 @@ export class ForgeCanvas extends PanelElement {
    */
   _readGuides(id) {
     try {
-      return JSON.parse(app.engine.snapGuides(id));
+      return app.engine.snapGuides(id);
     } catch (error) {
-      console.warn('[canvas] could not read snap guides', error);
+      console.warn('[devlove:canvas] could not read snap guides', error);
       return { v: [], h: [] };
     }
   }
@@ -957,7 +1064,11 @@ export class ForgeCanvas extends PanelElement {
 
     let bestX = { value: x, guide: null, distance: radius };
     for (const candidate of guides.v) {
-      for (const [edge, offset] of [[x, 0], [x + width / 2, width / 2], [x + width, width]]) {
+      for (const [edge, offset] of [
+        [x, 0],
+        [x + width / 2, width / 2],
+        [x + width, width],
+      ]) {
         const distance = Math.abs(edge - candidate);
         if (distance < bestX.distance) {
           bestX = { value: candidate - offset, guide: candidate, distance };
@@ -967,7 +1078,11 @@ export class ForgeCanvas extends PanelElement {
 
     let bestY = { value: y, guide: null, distance: radius };
     for (const candidate of guides.h) {
-      for (const [edge, offset] of [[y, 0], [y + height / 2, height / 2], [y + height, height]]) {
+      for (const [edge, offset] of [
+        [y, 0],
+        [y + height / 2, height / 2],
+        [y + height, height],
+      ]) {
         const distance = Math.abs(edge - candidate);
         if (distance < bestY.distance) {
           bestY = { value: candidate - offset, guide: candidate, distance };
@@ -1181,10 +1296,10 @@ export class ForgeCanvas extends PanelElement {
     editor.style.minWidth = `${rect[2]}px`;
     editor.style.minHeight = `${rect[3]}px`;
     editor.style.padding = `${padding}px`;
-    editor.style.fontSize = style.font_size ? `${style.font_size}px` : '16px';
-    editor.style.fontWeight = style.font_weight || '400';
-    editor.style.lineHeight = style.line_height ? String(style.line_height) : '1.5';
-    editor.style.textAlign = style.text_align || 'left';
+    editor.style.fontSize = style.fontSize ? `${style.fontSize}px` : '16px';
+    editor.style.fontWeight = style.fontWeight || '400';
+    editor.style.lineHeight = style.lineHeight ? String(style.lineHeight) : '1.5';
+    editor.style.textAlign = style.textAlign || 'left';
     editor.textContent = node.content || '';
     editor.setAttribute('data-on', 'true');
 
@@ -1220,4 +1335,4 @@ export class ForgeCanvas extends PanelElement {
   }
 }
 
-customElements.define('forge-canvas', ForgeCanvas);
+customElements.define('dl-canvas', DlCanvas);

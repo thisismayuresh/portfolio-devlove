@@ -5,13 +5,17 @@
  * DevTools protocol enabled, drives each test page in *real* time, and reports
  * the results.
  *
+ * This suite covers what only a real browser can answer: whether dragging,
+ * dropping and the preview frame's measurement loop actually work. Engine
+ * logic is covered far more cheaply by `node --test tests/unit/`.
+ *
  * Why not `chrome --headless --dump-dom`?
- *   `--dump-dom` snapshots after the load event, which is far too early for a
- *   page that must instantiate WebAssembly first. `--virtual-time-budget`
- *   fixes the timing but introduces a worse problem: once the virtual clock
- *   jumps past the budget, Chrome stops loading new frames, so anything
- *   created after an async fetch never runs. Driving the page over CDP with a
- *   real clock avoids both traps.
+ *   `--dump-dom` snapshots after the load event, long before the preview frame
+ *   has reported its first measurements. `--virtual-time-budget` fixes the
+ *   timing but introduces a worse problem: once the virtual clock jumps past
+ *   the budget, Chrome stops loading new frames, so anything created after an
+ *   async step never runs. Driving the page over CDP with a real clock avoids
+ *   both traps.
  *
  * Node 22+ is required (for the global `WebSocket`). No npm packages.
  *
@@ -80,28 +84,29 @@ function findBrowser() {
     return fromEnv;
   }
 
-  const candidates = {
-    win32: [
-      `${process.env['ProgramFiles']}\\Google\\Chrome\\Application\\chrome.exe`,
-      `${process.env['ProgramFiles(x86)']}\\Google\\Chrome\\Application\\chrome.exe`,
-      `${process.env['LOCALAPPDATA']}\\Google\\Chrome\\Application\\chrome.exe`,
-      `${process.env['ProgramFiles(x86)']}\\Microsoft\\Edge\\Application\\msedge.exe`,
-      `${process.env['ProgramFiles']}\\Microsoft\\Edge\\Application\\msedge.exe`,
-    ],
-    darwin: [
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      '/Applications/Chromium.app/Contents/MacOS/Chromium',
-      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-    ],
-    linux: [
-      '/usr/bin/google-chrome',
-      '/usr/bin/google-chrome-stable',
-      '/usr/bin/chromium',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/microsoft-edge',
-      '/snap/bin/chromium',
-    ],
-  }[process.platform] || [];
+  const candidates =
+    {
+      win32: [
+        `${process.env['ProgramFiles']}\\Google\\Chrome\\Application\\chrome.exe`,
+        `${process.env['ProgramFiles(x86)']}\\Google\\Chrome\\Application\\chrome.exe`,
+        `${process.env['LOCALAPPDATA']}\\Google\\Chrome\\Application\\chrome.exe`,
+        `${process.env['ProgramFiles(x86)']}\\Microsoft\\Edge\\Application\\msedge.exe`,
+        `${process.env['ProgramFiles']}\\Microsoft\\Edge\\Application\\msedge.exe`,
+      ],
+      darwin: [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+      ],
+      linux: [
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/chromium',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/microsoft-edge',
+        '/snap/bin/chromium',
+      ],
+    }[process.platform] || [];
 
   for (const candidate of candidates) {
     if (candidate && existsSync(candidate)) {
@@ -180,8 +185,7 @@ class DevToolsSession {
       awaitPromise: true,
     });
     if (result.exceptionDetails) {
-      const text = result.exceptionDetails.exception?.description
-        || result.exceptionDetails.text;
+      const text = result.exceptionDetails.exception?.description || result.exceptionDetails.text;
       throw new Error(`page threw: ${text}`);
     }
     return result.result.value;
@@ -214,18 +218,15 @@ async function driveEditor(session) {
     lines.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
 
   await until(
-    () => session.evaluate('Boolean(window.__forge && window.__forge.state.ready)'),
+    () => session.evaluate('Boolean(window.__devlove && window.__devlove.state.ready)'),
     'the editor to boot'
   );
   check('editor boots', true);
 
-  const rectCount = await until(
-    async () => {
-      const n = await session.evaluate('Object.keys(window.__forge.state.rects).length');
-      return n > 1 ? n : null;
-    },
-    'the preview frame to report geometry'
-  ).catch(() => 0);
+  const rectCount = await until(async () => {
+    const n = await session.evaluate('Object.keys(window.__devlove.state.rects).length');
+    return n > 1 ? n : null;
+  }, 'the preview frame to report geometry').catch(() => 0);
   check('preview frame reports geometry', rectCount > 1, `${rectCount} boxes`);
   if (!rectCount) {
     return lines;
@@ -233,8 +234,8 @@ async function driveEditor(session) {
 
   // Pick a leaf element and work out where it sits on screen.
   const target = await session.evaluate(`(() => {
-    const app = window.__forge;
-    const overlay = document.querySelector('forge-canvas').shadowRoot.querySelector('#overlay');
+    const app = window.__devlove;
+    const overlay = document.querySelector('dl-canvas').shadowRoot.querySelector('#overlay');
     const box = overlay.getBoundingClientRect();
     const entries = Object.entries(app.state.rects)
       .filter(([id, r]) => id !== 'root' && r[2] > 40 && r[3] > 20);
@@ -243,7 +244,7 @@ async function driveEditor(session) {
     return {
       id, rect, zoom: app.state.zoom,
       originX: box.left, originY: box.top,
-      node: JSON.parse(app.engine.getElement(id)),
+      node: app.engine.getElement(id),
     };
   })()`);
 
@@ -257,10 +258,7 @@ async function driveEditor(session) {
     x: Math.round(target.originX + px * target.zoom),
     y: Math.round(target.originY + py * target.zoom),
   });
-  const centre = toScreen(
-    target.rect[0] + target.rect[2] / 2,
-    target.rect[1] + target.rect[3] / 2
-  );
+  const centre = toScreen(target.rect[0] + target.rect[2] / 2, target.rect[1] + target.rect[3] / 2);
 
   const mouse = (type, x, y, extra = {}) =>
     session.send('Input.dispatchMouseEvent', {
@@ -280,7 +278,7 @@ async function driveEditor(session) {
   await mouse('mouseReleased', centre.x, centre.y);
   await sleep(250);
 
-  const selected = await session.evaluate('window.__forge.state.selection');
+  const selected = await session.evaluate('window.__devlove.state.selection');
   check('clicking the canvas selects an element', Boolean(selected), String(selected));
   if (!selected) {
     return lines;
@@ -290,7 +288,7 @@ async function driveEditor(session) {
   // Assert against whatever the click actually hit: pressing at the centre of
   // a section lands on the topmost child there, not on the section itself.
   const before = await session.evaluate(
-    `JSON.parse(window.__forge.engine.getElement(${JSON.stringify(selected)}))`
+    `window.__devlove.engine.getElement(${JSON.stringify(selected)})`
   );
   const startX = before.x;
   const startY = before.y;
@@ -310,7 +308,7 @@ async function driveEditor(session) {
   await sleep(350);
 
   const after = await session.evaluate(
-    `JSON.parse(window.__forge.engine.getElement(${JSON.stringify(selected)}))`
+    `window.__devlove.engine.getElement(${JSON.stringify(selected)})`
   );
   const movedX = Math.abs(after.x - startX);
   const movedY = Math.abs(after.y - startY);
@@ -321,9 +319,9 @@ async function driveEditor(session) {
   );
 
   // --- palette drop -------------------------------------------------------
-  const countBefore = await session.evaluate('window.__forge.engine.nodeCount()');
+  const countBefore = await session.evaluate('window.__devlove.engine.nodeCount()');
   const tile = await session.evaluate(`(() => {
-    const palette = document.querySelector('forge-palette');
+    const palette = document.querySelector('dl-palette');
     const el = palette.shadowRoot.querySelector('[data-kind="button"]');
     if (!el) return null;
     const r = el.getBoundingClientRect();
@@ -347,7 +345,7 @@ async function driveEditor(session) {
     await mouse('mouseReleased', landing.x, landing.y);
     await sleep(400);
 
-    const afterCount = await session.evaluate('window.__forge.engine.nodeCount()');
+    const afterCount = await session.evaluate('window.__devlove.engine.nodeCount()');
     check(
       'dragging from the palette adds an element',
       afterCount === countBefore + 1,
@@ -355,13 +353,58 @@ async function driveEditor(session) {
     );
   }
 
-  // --- undo ---------------------------------------------------------------
-  const undone = await session.evaluate(`(() => {
-    const n = window.__forge.engine.nodeCount();
-    window.__forge.undo();
-    return { before: n, after: window.__forge.engine.nodeCount() };
+  // --- inspector ----------------------------------------------------------
+  // The inspector renders borderless label/value rows from a schema; this
+  // guards the wiring between a rendered control and the engine.
+  const inspected = await session.evaluate(`(() => {
+    const app = window.__devlove;
+    const panel = document.querySelector('dl-inspector');
+    const field = panel.shadowRoot.querySelector('[data-key="width"]');
+    if (!field) return { error: 'no width field rendered' };
+
+    const id = app.state.selection;
+    const before = app.engine.getElement(id).width;
+    field.value = String(before + 55);
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+    return { before, after: app.engine.getElement(id).width };
   })()`);
-  check('undo works from the editor', undone.after !== undone.before, JSON.stringify(undone));
+  check(
+    'editing a value in the inspector reaches the engine',
+    !inspected.error && inspected.after === inspected.before + 55,
+    JSON.stringify(inspected)
+  );
+
+  const toggled = await session.evaluate(`(() => {
+    const app = window.__devlove;
+    const panel = document.querySelector('dl-inspector');
+    const group = panel.shadowRoot.querySelector('.bool[data-key="autoHeight"]');
+    if (!group) return { error: 'no autoHeight toggle rendered' };
+
+    const id = app.state.selection;
+    const before = app.engine.getElement(id).autoHeight;
+    group.querySelector('[data-value="' + (before ? 'false' : 'true') + '"]').click();
+    return { before, after: app.engine.getElement(id).autoHeight };
+  })()`);
+  check(
+    'True/False toggles reach the engine',
+    !toggled.error && toggled.after !== toggled.before,
+    JSON.stringify(toggled)
+  );
+
+  // --- undo ---------------------------------------------------------------
+  // Compares whole documents rather than the node count: by this point the
+  // most recent change is a property edit, which leaves the count untouched.
+  const undone = await session.evaluate(`(() => {
+    const app = window.__devlove;
+    // exportProject() is the synchronous engine call; app.serializeProject()
+    // hands the same work to the compile worker and returns a promise.
+    const before = app.engine.exportProject();
+    const accepted = app.engine.undo();
+    const after = app.engine.exportProject();
+    return { accepted, changed: before !== after };
+  })()`);
+  check('undo reverses the last change', undone.accepted && undone.changed, JSON.stringify(undone));
 
   return lines;
 }
@@ -371,13 +414,11 @@ async function driveEditor(session) {
 async function main() {
   const browser = findBrowser();
   if (!browser) {
-    console.error(
-      'No Chrome/Chromium/Edge found. Set CHROME_PATH to the executable and retry.'
-    );
+    console.error('No Chrome/Chromium/Edge found. Set CHROME_PATH to the executable and retry.');
     process.exit(2);
   }
 
-  const profileDir = mkdtempSync(join(tmpdir(), 'forge-cdp-'));
+  const profileDir = mkdtempSync(join(tmpdir(), 'devlove-cdp-'));
   let server = null;
   let chrome = null;
   let failed = 0;
@@ -407,7 +448,7 @@ async function main() {
     server = spawn(findPython(), ['serve.py', String(SERVER_PORT)], {
       cwd: ROOT,
       stdio: 'ignore',
-      env: { ...process.env, FORGE_NO_BROWSER: '1' },
+      env: { ...process.env, DEVLOVE_NO_BROWSER: '1' },
     });
 
     await until(
@@ -485,7 +526,9 @@ async function main() {
           lines.push(`FAIL  ${error.message}`);
         }
         const report = await session
-          .evaluate("document.getElementById('out') ? document.getElementById('out').textContent : ''")
+          .evaluate(
+            "document.getElementById('out') ? document.getElementById('out').textContent : ''"
+          )
           .catch(() => '');
         lines = String(report).split('\n').filter(Boolean).concat(lines);
         passed = title.endsWith('-OK');

@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Zero-dependency static server for the Forge editor.
+"""Zero-dependency static server for the devlove editor.
 
-`python -m http.server` almost works, but two details break the WASM path on
-some systems:
+The editor is plain ES modules, so it needs to be served over ``http://`` —
+module imports and Web Workers are both blocked on ``file://``. Any static
+server will do; this one exists so that there is always one available and so
+that two details are right:
 
-* ``.wasm`` must be served as ``application/wasm`` or
-  ``WebAssembly.instantiateStreaming`` refuses the response;
-* aggressive caching hides a freshly rebuilt ``pkg/`` behind a stale copy.
+* ``.js`` is served as ``text/javascript`` (some Windows registries claim
+  ``text/plain``, which browsers refuse to execute as a module);
+* nothing is cached, so a saved file is a refresh away rather than a
+  hard-reload-and-hope away.
 
-This script fixes both and nothing else. Usage::
+Usage::
 
     python serve.py            # http://127.0.0.1:8080
     python serve.py 3000       # pick a port
@@ -28,7 +31,6 @@ DEFAULT_HOST = "127.0.0.1"
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
 EXTRA_TYPES = {
-    ".wasm": "application/wasm",
     ".js": "text/javascript",
     ".mjs": "text/javascript",
     ".json": "application/json",
@@ -37,8 +39,8 @@ EXTRA_TYPES = {
 }
 
 
-class ForgeHandler(http.server.SimpleHTTPRequestHandler):
-    """Static handler with correct WASM typing and no client caching."""
+class DevloveHandler(http.server.SimpleHTTPRequestHandler):
+    """Static handler with correct JS typing and no client caching."""
 
     extensions_map = {
         **http.server.SimpleHTTPRequestHandler.extensions_map,
@@ -49,12 +51,12 @@ class ForgeHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=ROOT, **kwargs)
 
     def end_headers(self) -> None:
-        # No caching: a rebuilt ./pkg must never be shadowed by a stale copy.
+        # No caching: an edited file must never be shadowed by a stale copy.
         self.send_header("Cache-Control", "no-store, must-revalidate")
         self.send_header("Pragma", "no-cache")
-        # Deliberately *not* setting COOP/COEP here. Cross-origin isolation is
-        # only needed for shared-memory threads, and `require-corp` interferes
-        # with the sandboxed srcdoc preview frame.
+        # Deliberately *not* setting COOP/COEP. Cross-origin isolation is only
+        # needed for shared-memory threads, which this project does not use,
+        # and `require-corp` interferes with the sandboxed srcdoc preview frame.
         super().end_headers()
 
     def log_message(self, fmt: str, *args) -> None:
@@ -72,16 +74,12 @@ def main() -> int:
     port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
     host = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_HOST
 
-    if not os.path.isdir(os.path.join(ROOT, "pkg")):
-        print("!  ./pkg is missing — the editor will show a boot error.")
-        print("   Build the engine first:  wasm-pack build --target web\n")
-
     url = f"http://{host}:{port}/"
-    # The test runner starts this server itself and drives its own browser.
-    open_browser = os.environ.get("FORGE_NO_BROWSER", "") == ""
+    # The browser test suite starts this server itself and drives its own tab.
+    open_browser = os.environ.get("DEVLOVE_NO_BROWSER", "") == ""
     try:
-        with ReusableServer((host, port), ForgeHandler) as httpd:
-            print(f"Forge is served from {ROOT}")
+        with ReusableServer((host, port), DevloveHandler) as httpd:
+            print(f"devlove is served from {ROOT}")
             print(f"Open {url}   (Ctrl+C to stop)\n")
             if open_browser:
                 try:

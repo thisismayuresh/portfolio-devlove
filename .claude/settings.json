@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node shot.mjs v7.png http://127.0.0.1:8080/ --preview)",
+      "Bash(node shot.mjs saas2.png http://127.0.0.1:8080/ --template=saas --preview)",
+      "Bash(node shot.mjs docs.png http://127.0.0.1:8080/ --template=docs --preview)",
+      "Bash(node shot.mjs docs2.png http://127.0.0.1:8080/ --template=docs --preview)",
+      "Bash(node -e \"import\\('./js/registry/elements.js'\\).then\\(m => console.log\\('tiles:', Object.keys\\(m.BLUEPRINTS\\).length\\)\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python \"C:/Users/COMP-3/AppData/Local/Temp/claude/c--Users-COMP-3-Downloads-Personal-project/0724a543-b24e-4860-a294-ec3c068ab089/scratchpad/docs2.py\")",
+      "Bash(node shot.mjs final-templates.png http://127.0.0.1:8080/ --dock=templates --select=button)",
+      "Bash(node shot.mjs probe-out.png http://127.0.0.1:8080/ --probe=probe.js)",
+      "Bash(node shot.mjs probe2.png http://127.0.0.1:8080/ --probe=probe.js)",
+      "Bash(pkill -f \"serve.py\")",
+      "Bash(node shot.mjs borders.png http://127.0.0.1:8080/)",
+      "Bash(node --check js/ui/components/dl-palette.js)",
+      "Bash(tasklist //FI \"IMAGENAME eq chrome.exe\")",
+      "Bash(node -e \"import\\('./js/registry/elements.js'\\).then\\(\\(\\)=>console.log\\('modules load'\\)\\)\")"
+    ]
+  }
+}

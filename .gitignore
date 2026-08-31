@@ -1,5 +1,9 @@
-/target
-/pkg
-Cargo.lock
-*.wasm
+# Optional developer tooling only — nothing here is needed to run the editor.
+node_modules/
+npm-debug.log*
+package-lock.json
+
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/

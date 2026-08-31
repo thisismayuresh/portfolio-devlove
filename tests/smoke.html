@@ -2,11 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Forge smoke test</title>
+    <title>devlove smoke test</title>
     <style>
-      body { background: #111; color: #ddd; font: 13px/1.6 monospace; padding: 16px; }
-      .pass { color: #4ade80; }
-      .fail { color: #f87171; }
+      body {
+        background: #111;
+        color: #ddd;
+        font: 13px/1.6 monospace;
+        padding: 16px;
+      }
+      .pass {
+        color: #4ade80;
+      }
+      .fail {
+        color: #f87171;
+      }
     </style>
   </head>
   <body>
@@ -14,49 +23,47 @@
     <pre id="out"></pre>
 
     <!--
-      Headless end-to-end check of the engine ↔ preview-frame contract.
+      The three-way contract between the engine, the compile worker and the
+      sandboxed preview frame — the part that only a real browser can answer.
 
           python serve.py
-          chrome --headless=new --dump-dom --virtual-time-budget=10000 \
-                 http://127.0.0.1:8080/tests/smoke.html
+          open http://127.0.0.1:8080/tests/smoke.html
 
-      Every result is written into #out as plain text so `--dump-dom` captures
-      it. Nothing here touches the editor UI — this covers the layer beneath it.
+      Engine logic is not tested here. It is plain ES modules with no DOM
+      access, so it is covered far more cheaply by:
+
+          node --test tests/unit/*.test.js
+
+      Every result is written into #out as plain text, and the verdict into
+      document.title, so a headless runner can read both.
     -->
     <script type="module">
-      import init, { createEngine, availableKinds } from '../pkg/designer_engine.js';
+      import { Engine } from '../js/engine/index.js';
+      import { compileService } from '../js/core/compile-service.js';
 
       const results = [];
       const check = (name, condition, detail = '') => {
         results.push(`${condition ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
-        // Stream to the DOM so `--dump-dom` still captures progress if a later
-        // step never settles.
+        // Stream to the DOM so progress is visible even if a later step hangs.
         document.getElementById('out').textContent = results.join('\n');
         return Boolean(condition);
       };
 
       /**
-       * Resolves with the first `rects` message the frame posts.
+       * Resolves with the first matching message the frame posts.
        *
-       * Deliberately has no timeout. Headless Chrome runs this under a virtual
-       * clock that can jump the entire time budget the instant the WASM fetch
-       * settles, so any competing timer would always win the race and report a
-       * failure that does not exist in a real browser.
-       */
-      function waitForRects(frame, predicate) {
-        return waitForFrameMessage(frame, 'rects', predicate);
-      }
-
-      /**
+       * Deliberately has no timeout: the runner enforces its own, and a
+       * competing timer here would report failures that do not exist.
+       *
        * @param {HTMLIFrameElement} frame
        * @param {string} type
-       * @param {(data: any) => boolean} [predicate] ignore messages that fail it
+       * @param {(data: any) => boolean} [predicate] ignore messages failing it
        */
       function waitForFrameMessage(frame, type, predicate) {
         return new Promise((resolve) => {
           function onMessage(event) {
             const data = event.data;
-            if (!data || data.source !== 'tb-frame' || data.type !== type) {
+            if (!data || data.source !== 'dl-frame' || data.type !== type) {
               return;
             }
             if (event.source !== frame.contentWindow) {
@@ -75,11 +82,7 @@
       }
 
       async function run() {
-        await init();
-
-        const engine = createEngine();
-        check('engine instantiates', Boolean(engine));
-        check('availableKinds returns JSON', JSON.parse(availableKinds()).length > 0);
+        const engine = new Engine();
 
         // --- structural API -------------------------------------------------
         const box = engine.addElement('container', 'root', 40, 60);
@@ -89,20 +92,22 @@
 
         const label = engine.addElement('heading', box, 20, 20);
         check('nested addElement', typeof label === 'string', label);
+        check('child records its parent', engine.getElement(label).parent === box);
+        check('tree root has one child', engine.getTree().children.length === 1);
 
-        const node = JSON.parse(engine.getElement(label));
-        check('child records its parent', node.parent === box, String(node.parent));
-
-        const tree = JSON.parse(engine.getTree());
-        check('tree root has one child', tree.children.length === 1, String(tree.children.length));
-
-        // --- compiler -------------------------------------------------------
-        const preview = engine.compilePreview();
+        // --- the compile worker ---------------------------------------------
+        const preview = await compileService.compile(engine.snapshot(), { editor: true });
+        check('compile worker is live', compileService.offThread === true);
         check('preview carries data-nid', preview.includes(`data-nid="${box}"`));
-        check('preview carries the runtime', preview.includes('tb-frame'));
-        check('export carries no runtime', !engine.compileExport().includes('<script>'));
+        check('preview carries the runtime', preview.includes('dl-frame'));
 
-        // --- the frame handshake -------------------------------------------
+        const exported = await compileService.compile(engine.snapshot(), { editor: false });
+        check('export carries no runtime', !exported.includes('<script>'));
+
+        const json = await compileService.serialize(engine.snapshot());
+        check('worker serialises the project', JSON.parse(json).nodes[box] !== undefined);
+
+        // --- the frame handshake --------------------------------------------
         // Must stay on-screen: Chrome does not run requestAnimationFrame for
         // an off-screen frame, and the measurement runtime is rAF-driven.
         const frame = document.createElement('iframe');
@@ -111,70 +116,86 @@
         document.body.append(frame);
 
         const ready = waitForFrameMessage(frame, 'ready');
-        const pending = waitForRects(frame);
+        const pending = waitForFrameMessage(frame, 'rects');
         frame.srcdoc = preview;
 
         await ready;
         check('frame runtime boots', true);
 
         const rects = (await pending).rects;
-        check('frame posts rects', true);
+        check('frame posts rects', Boolean(rects));
 
         if (rects) {
           check('rects include the root', Array.isArray(rects.root), JSON.stringify(rects.root));
           check('rects include the box', Array.isArray(rects[box]), JSON.stringify(rects[box]));
 
-          engine.syncRects(JSON.stringify(rects));
+          engine.syncRects(rects);
 
           const boxRect = rects[box] || [0, 0, 0, 0];
           const cx = boxRect[0] + boxRect[2] / 2;
           const cy = boxRect[1] + boxRect[3] / 2;
 
-          check('hitTest finds a node at the box centre', engine.hitTest(cx, cy) !== undefined);
           const hit = engine.hitTest(cx, cy);
           check('hitTest resolves inside the box', hit === box || hit === label, String(hit));
-          check('hitTest misses empty space', !engine.hitTest(1270, 890), String(engine.hitTest(1270, 890)));
-          check('dropTarget returns the box', engine.dropTarget(cx, cy) === box, String(engine.dropTarget(cx, cy)));
+          check('hitTest misses empty space', engine.hitTest(1270, 890) === null);
+          check('dropTarget returns the box', engine.dropTarget(cx, cy) === box);
           check(
             'dropTarget excludes the dragged subtree',
-            engine.dropTarget(cx, cy, box) === 'root',
-            String(engine.dropTarget(cx, cy, box))
+            engine.dropTarget(cx, cy, box) === 'root'
           );
 
-          const local = JSON.parse(engine.toLocalPoint(box, cx, cy));
-          check('toLocalPoint is inside the box', local[0] > 0 && local[0] < 300, JSON.stringify(local));
+          const local = engine.toLocalPoint(box, cx, cy);
+          check(
+            'toLocalPoint is inside the box',
+            local[0] > 0 && local[0] < 300,
+            JSON.stringify(local)
+          );
 
           // --- the live-patch path -----------------------------------------
+          // This is the path a drag takes: compile one node's declarations on
+          // the main thread and post them straight into the frame.
           const before = rects[box][0];
           engine.moveElement(box, 500, 60);
           const css = engine.nodeCss(box);
           check('nodeCss emits absolute geometry', css.includes('left:500px'), css.slice(0, 90));
 
-          const patched = waitForRects(frame, (data) => {
-            const box_ = data.rects[box];
-            return Array.isArray(box_) && box_[0] !== before;
+          const patched = waitForFrameMessage(frame, 'rects', (data) => {
+            const measured = data.rects[box];
+            return Array.isArray(measured) && measured[0] !== before;
           });
-          frame.contentWindow.postMessage({ target: 'tb-frame', type: 'patch', id: box, css }, '*');
+          frame.contentWindow.postMessage({ target: 'dl-frame', type: 'patch', id: box, css }, '*');
           const moved = (await patched).rects[box];
-          check('patch moves the element in the frame', moved && moved[0] !== before, JSON.stringify(moved));
+          check(
+            'patch moves the element in the frame',
+            moved && moved[0] !== before,
+            JSON.stringify(moved)
+          );
         }
 
         // --- history --------------------------------------------------------
         engine.clearHistory();
         engine.deleteElement(box);
         check('delete removes the subtree', engine.nodeCount() === 1, String(engine.nodeCount()));
-        check('undo restores it', engine.undo() && engine.nodeCount() === 3, String(engine.nodeCount()));
+        check(
+          'undo restores it',
+          engine.undo() && engine.nodeCount() === 3,
+          String(engine.nodeCount())
+        );
 
         const failures = results.filter((line) => line.startsWith('FAIL'));
         document.getElementById('out').textContent = results.join('\n');
         document.getElementById('verdict').textContent =
-          failures.length === 0 ? `ALL ${results.length} CHECKS PASSED` : `${failures.length} FAILED`;
+          failures.length === 0
+            ? `ALL ${results.length} CHECKS PASSED`
+            : `${failures.length} FAILED`;
         document.title = failures.length === 0 ? 'SMOKE-OK' : 'SMOKE-FAIL';
       }
 
       run().catch((error) => {
         document.getElementById('verdict').textContent = 'HARNESS ERROR';
-        document.getElementById('out').textContent = String(error && error.stack ? error.stack : error);
+        document.getElementById('out').textContent = String(
+          error && error.stack ? error.stack : error
+        );
         document.title = 'SMOKE-FAIL';
       });
     </script>

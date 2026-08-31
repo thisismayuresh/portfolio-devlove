@@ -5,6 +5,11 @@
  * this string plus its own layout rules. Colours come exclusively from the
  * custom properties in `css/tokens.css`, which do cross the boundary.
  *
+ * Two conventions run through every primitive below, both from `tokens.css`:
+ * corners are square, and "this one is selected" is drawn with `--ink-strong`
+ * plus a border, not with a filled accent pill. Accent blue is reserved for
+ * focus rings and the single primary button.
+ *
  * @module ui/shared-styles
  */
 
@@ -38,12 +43,8 @@ ${ICON_CSS}
 .scroll { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .scroll::-webkit-scrollbar { width: 10px; height: 10px; }
 .scroll::-webkit-scrollbar-track { background: transparent; }
-.scroll::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
-  border: 3px solid transparent;
-  background-clip: content-box;
-  border-radius: 999px;
-}
+.scroll::-webkit-scrollbar-thumb { background: rgba(121, 121, 121, 0.4); }
+.scroll::-webkit-scrollbar-thumb:hover { background: rgba(100, 100, 100, 0.7); }
 
 /* ------------------------------------------------------------------- tabs */
 .tabs {
@@ -62,42 +63,189 @@ ${ICON_CSS}
   align-items: center;
   justify-content: center;
   color: var(--ink-dim);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: 500;
   transition: color 90ms var(--ease), background 90ms var(--ease);
 }
 .tab:hover { color: var(--ink); background: var(--surface-hover); }
-.tab[aria-selected="true"] { color: var(--ink-strong); }
+.tab[aria-selected="true"] { color: var(--ink-strong); background: var(--surface-panel); }
 .tab[aria-selected="true"]::after {
   content: "";
   position: absolute;
-  left: 0; right: 0; bottom: -1px;
-  height: 2px;
-  background: var(--accent);
+  left: 0; right: 0; top: 0;
+  height: 1px;
+  background: var(--ink-strong);
 }
 
 /* ----------------------------------------------------------- panel header */
 .panel-head {
   display: flex;
   align-items: center;
-  gap: 7px;
-  height: 34px;
+  gap: 8px;
+  height: 32px;
   flex: 0 0 auto;
-  padding: 0 6px 0 10px;
+  padding: 0 6px 0 12px;
   border-bottom: 1px solid var(--line);
-  background: var(--surface-header);
+  background: var(--surface-panel);
   color: var(--ink-dim);
 }
 .panel-head__title {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--ink-strong);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* -------------------------------------------------------- property rows --
+ * The inspector reads as label + value, not as a stack of form controls.
+ * A value looks like text until you hover or focus it, at which point it
+ * reveals the affordances of the input it has always been.
+ */
+.prop {
+  display: grid;
+  grid-template-columns: var(--prop-label-w) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: var(--prop-row-h);
+}
+.prop--stacked {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+  padding: 5px 0;
+}
+.prop__label {
+  font-size: var(--text-sm);
+  color: var(--ink-dim);
+  user-select: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.value {
+  width: 100%;
+  min-width: 0;
+  height: var(--control-h);
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-strong);
+  font-size: var(--text-md);
+  text-overflow: ellipsis;
+  transition: background 90ms var(--ease), border-color 90ms var(--ease);
+}
+.value:hover { background: var(--surface-input); border-color: var(--line); }
+.value:focus {
+  outline: none;
+  background: var(--surface-input);
+  border-color: var(--accent);
+}
+.value::placeholder { color: var(--ink-faint); }
+.value[type="number"] {
+  font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield;
+}
+.value[type="number"]::-webkit-outer-spin-button,
+.value[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+select.value {
+  appearance: none;
+  padding-right: 20px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-faint) 50%),
+                    linear-gradient(135deg, var(--ink-faint) 50%, transparent 50%);
+  background-position: calc(100% - 11px) 12px, calc(100% - 7px) 12px;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+}
+select.value option { background: var(--surface-raised); color: var(--ink); }
+
+/* A pair of numeric values sharing one row, e.g. W and H. */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.pair__cell {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 2px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  transition: background 90ms var(--ease), border-color 90ms var(--ease);
+}
+.pair__cell:hover { background: var(--surface-input); border-color: var(--line); }
+.pair__cell:focus-within {
+  background: var(--surface-input);
+  border-color: var(--accent);
+}
+.pair__cell--bare { grid-template-columns: minmax(0, 1fr); }
+.pair__key {
+  padding-left: 7px;
+  color: var(--ink-faint);
+  font-size: var(--text-sm);
+  user-select: none;
+}
+.pair__cell .value { border: 0; background: none; padding-left: 2px; }
+.pair__cell .value:hover,
+.pair__cell .value:focus { background: none; box-shadow: none; border-color: transparent; }
+
+/* True/False pair, the shape a boolean attribute takes in a builder. */
+.bool {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  padding: 1px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-sunken);
+}
+.bool button {
+  height: 20px;
+  padding: 0 12px;
+  color: var(--ink-dim);
+  font-size: var(--text-sm);
+  transition: background 90ms var(--ease), color 90ms var(--ease);
+}
+.bool button:hover { color: var(--ink); background: var(--surface-hover); }
+.bool button[aria-pressed="true"] { background: var(--surface-raised); color: var(--ink-strong); }
+
+/* Swatch + hex, borderless until touched. */
+.swatch-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.swatch {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--line-strong);
+  overflow: hidden;
+  background-image:
+    linear-gradient(45deg, #3c3c3c 25%, transparent 25%, transparent 75%, #3c3c3c 75%),
+    linear-gradient(45deg, #3c3c3c 25%, transparent 25%, transparent 75%, #3c3c3c 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 4px 4px;
+  cursor: pointer;
+}
+.swatch input {
+  position: absolute;
+  inset: -25%;
+  width: 150%;
+  height: 150%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
 }
 
 /* ---------------------------------------------------------------- section */
@@ -111,10 +259,10 @@ ${ICON_CSS}
 .section__head {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   width: 100%;
-  height: 32px;
-  padding: 0 8px 0 10px;
+  height: 30px;
+  padding: 0 10px 0 12px;
   color: var(--ink-dim);
   user-select: none;
   text-align: left;
@@ -135,9 +283,11 @@ ${ICON_CSS}
 
 .section__title {
   min-width: 0;
-  font-size: var(--text-sm);
-  font-weight: 500;
-  letter-spacing: 0.01em;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -149,7 +299,7 @@ ${ICON_CSS}
   font-variant-numeric: tabular-nums;
 }
 
-.section__body { padding: 2px 10px 12px; }
+.section__body { padding: 0 12px 12px; }
 .section[data-open="false"] .section__body { display: none; }
 
 /* --------------------------------------------------------------- controls */
@@ -168,8 +318,8 @@ ${ICON_CSS}
   white-space: nowrap;
   transition: background 90ms var(--ease), border-color 90ms var(--ease), color 90ms var(--ease);
 }
-.btn:hover:not(:disabled) { background: #272b32; border-color: var(--line-strong); }
-.btn:active:not(:disabled) { background: #202329; }
+.btn:hover:not(:disabled) { background: #383838; border-color: var(--line-strong); }
+.btn:active:not(:disabled) { background: #2a2a2a; }
 .btn:disabled { opacity: 0.42; cursor: default; }
 .btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
@@ -200,7 +350,7 @@ ${ICON_CSS}
 .icon-btn:hover:not(:disabled) { background: var(--surface-hover); color: var(--ink); }
 .icon-btn:active:not(:disabled) { background: var(--surface-active); }
 .icon-btn:disabled { opacity: 0.35; cursor: default; }
-.icon-btn[aria-pressed="true"] { background: var(--accent-wash); color: var(--accent); }
+.icon-btn[aria-pressed="true"] { background: var(--surface-active); color: var(--ink-strong); }
 .icon-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ----------------------------------------------------------------- fields */
@@ -246,7 +396,6 @@ ${ICON_CSS}
 .input:focus, .select:focus, .textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-wash);
 }
 .input::placeholder, .textarea::placeholder { color: var(--ink-faint); }
 
@@ -281,12 +430,11 @@ ${ICON_CSS}
   position: relative;
   width: var(--control-h);
   height: var(--control-h);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
   overflow: hidden;
   background-image:
-    linear-gradient(45deg, #2a2d35 25%, transparent 25%, transparent 75%, #2a2d35 75%),
-    linear-gradient(45deg, #2a2d35 25%, transparent 25%, transparent 75%, #2a2d35 75%);
+    linear-gradient(45deg, #3c3c3c 25%, transparent 25%, transparent 75%, #3c3c3c 75%),
+    linear-gradient(45deg, #3c3c3c 25%, transparent 25%, transparent 75%, #3c3c3c 75%);
   background-size: 8px 8px;
   background-position: 0 0, 4px 4px;
 }
@@ -304,11 +452,10 @@ ${ICON_CSS}
 /* segmented control */
 .segmented {
   display: flex;
-  padding: 2px;
-  gap: 2px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-input);
+  padding: 1px;
+  gap: 1px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-sunken);
 }
 .segmented button {
   flex: 1 1 0;
@@ -317,13 +464,12 @@ ${ICON_CSS}
   justify-content: center;
   gap: 4px;
   height: 20px;
-  border-radius: 3px;
   color: var(--ink-dim);
   font-size: var(--text-xs);
   transition: background 90ms var(--ease), color 90ms var(--ease);
 }
 .segmented button:hover { background: var(--surface-hover); color: var(--ink); }
-.segmented button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.segmented button[aria-pressed="true"] { background: var(--surface-raised); color: var(--ink-strong); }
 
 /* switch */
 .switch {
@@ -339,42 +485,40 @@ ${ICON_CSS}
 .switch__track {
   position: relative;
   flex: 0 0 auto;
-  width: 28px;
-  height: 16px;
-  border-radius: 999px;
-  background: var(--line-strong);
-  transition: background 120ms var(--ease);
+  width: 26px;
+  height: 14px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-sunken);
+  transition: background 120ms var(--ease), border-color 120ms var(--ease);
 }
 .switch__track::after {
   content: "";
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #d4d8e0;
-  transition: transform 140ms var(--ease);
+  width: 8px;
+  height: 8px;
+  background: var(--ink-faint);
+  transition: transform 140ms var(--ease), background 140ms var(--ease);
 }
-.switch[aria-checked="true"] .switch__track { background: var(--accent); }
-.switch[aria-checked="true"] .switch__track::after { transform: translateX(12px); background: #fff; }
+.switch[aria-checked="true"] .switch__track { border-color: var(--accent); background: var(--accent); }
+.switch[aria-checked="true"] .switch__track::after { transform: translateX(12px); background: var(--accent-ink); }
 
 /* range */
 .range { width: 100%; height: var(--control-h); appearance: none; background: none; cursor: pointer; }
-.range::-webkit-slider-runnable-track { height: 3px; border-radius: 3px; background: var(--line-strong); }
-.range::-moz-range-track { height: 3px; border-radius: 3px; background: var(--line-strong); }
+.range::-webkit-slider-runnable-track { height: 3px; background: var(--line-strong); }
+.range::-moz-range-track { height: 3px; background: var(--line-strong); }
 .range::-webkit-slider-thumb {
   appearance: none;
-  width: 12px;
-  height: 12px;
-  margin-top: -4.5px;
-  border-radius: 50%;
+  width: 8px;
+  height: 14px;
+  margin-top: -5.5px;
   background: var(--ink);
-  border: 2px solid var(--surface-panel);
+  border: 0;
 }
 .range::-moz-range-thumb {
-  width: 12px; height: 12px; border-radius: 50%;
-  background: var(--ink); border: 2px solid var(--surface-panel);
+  width: 8px; height: 14px; border-radius: 0;
+  background: var(--ink); border: 0;
 }
 .range:focus-visible { outline: none; }
 .range:focus-visible::-webkit-slider-thumb { box-shadow: var(--focus-ring); }
@@ -396,7 +540,6 @@ ${ICON_CSS}
   padding: 1px 4px;
   border: 1px solid var(--line-strong);
   border-bottom-width: 2px;
-  border-radius: 3px;
   background: var(--surface-raised);
   color: var(--ink-dim);
   font-family: var(--font-mono);
