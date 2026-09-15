@@ -128,6 +128,75 @@ export class Engine {
     });
   }
 
+  /**
+   * Creates a whole subtree — a block from `registry/blocks.js` — as **one**
+   * undo step.
+   *
+   * `addElementWith` takes a checkpoint per call, which is right for one
+   * element and wrong for twenty: dropping a navbar would leave twenty presses
+   * of Ctrl+Z between you and the page you had. This runs the same primitives
+   * inside a single guard instead.
+   *
+   * The first spec is the block's root and takes `x`/`y`; every other spec
+   * names its parent by the `ref` of an earlier one. A spec naming a ref that
+   * does not exist is attached to the root rather than dropped, so a typo
+   * costs you a misplaced element instead of a missing one.
+   *
+   * @param {Array<{kind: string, props?: Record<string, any>, ref?: string, parent?: string}>} spec
+   * @param {string | null} [parentId] container for the root; defaults to the page
+   * @param {number} [x]
+   * @param {number} [y]
+   * @returns {string} the root's id
+   */
+  addBlock(spec, parentId = null, x = 0, y = 0) {
+    if (!Array.isArray(spec) || spec.length === 0) {
+      throw new Error('a block needs at least one node');
+    }
+    return this._guard(() => {
+      /** @type {Record<string, string>} ref -> real id */
+      const aliases = Object.create(null);
+      let rootId = '';
+
+      try {
+        for (const [index, node] of spec.entries()) {
+          const kind = resolveKind(node.kind);
+          if (kind === null) {
+            throw new Error(`unknown element kind \`${node.kind}\``);
+          }
+          const parent = index === 0 ? parentId : aliases[node.parent] || rootId;
+          const id = addNode(this.doc, kind, parent, index === 0 ? x : 0, index === 0 ? y : 0);
+          const created = this.doc.nodes[id];
+
+          for (const [key, value] of Object.entries(node.props || {})) {
+            try {
+              setNodeProp(created, key, value === null ? '' : String(value));
+            } catch (error) {
+              throw new Error(`\`${key}\`: ${error.message}`);
+            }
+          }
+          if (node.ref) {
+            aliases[node.ref] = id;
+          }
+          if (index === 0) {
+            rootId = id;
+          }
+        }
+      } catch (error) {
+        // Half a block on the page is worse than no block at all. `_guard`
+        // drops the checkpoint on the way out, but a discarded checkpoint does
+        // not put the document back — so take the nodes back by hand. Deleting
+        // the root is enough: everything else was parented under it.
+        if (rootId && this.doc.nodes[rootId]) {
+          deleteNode(this.doc, rootId);
+        }
+        throw error;
+      }
+
+      this._selection = [rootId];
+      return rootId;
+    });
+  }
+
   /** @param {string} id */
   deleteElement(id) {
     this._guard(() => {

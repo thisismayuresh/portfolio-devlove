@@ -72,7 +72,8 @@ The editor itself has **zero** runtime dependencies.
 
 | Action                       | How                                                                                                                              |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Add an element               | Drag a row from the left panel onto the canvas, double-click it, or press its letter — the palette shows each one                |
+| Add an element               | Drag a tile from the left panel onto the canvas, double-click it, or press its letter — the palette shows each one               |
+| Add a whole block            | Drag a **Navigation** or **Blocks** tile — a navbar, sidebar, contact form or pricing card arrives assembled, as one undo step   |
 | Switch left panel            | The icon rail — Elements or Layers                                                                                               |
 | Change canvas width          | The device buttons in the canvas toolbar, or type a width                                                                        |
 | Select                       | Click it on the canvas, or click its row in **Layers**                                                                           |
@@ -81,6 +82,7 @@ The editor itself has **zero** runtime dependencies.
 | Duplicate while dragging     | Hold `Alt` and start the drag                                                                                                    |
 | Resize                       | Drag any of the eight handles. `Shift` locks the aspect ratio on corners                                                         |
 | Nest inside a container      | Drag over it — the green outline shows the receiving container                                                                   |
+| Take something back out      | Drag it clear of its Stack or Grid. Inside the container a drag reorders; once the pointer leaves, it moves out                  |
 | Reorder / reparent precisely | Drag rows in the **Layers** tree (above / into / below zones)                                                                    |
 | Copy between containers      | `Ctrl+C` then select a container and `Ctrl+V` — the copy lands inside it                                                         |
 | Group                        | Select several and `Ctrl+G`. The group is a real container, so it can be styled, moved and laid out like anything else           |
@@ -102,6 +104,19 @@ Twenty primitives, grouped the way the palette groups them.
 | Content | Heading, Text, List, Table, Quote, Code                      |
 | Media   | Image, Video                                                 |
 | Forms   | Form, Button, Link, Label, Input, Textarea                   |
+
+**And twelve blocks**, which are whole arrangements rather than single
+elements — drop one and you get the nodes already laid out.
+
+| Group      | Blocks                                                                               |
+| ---------- | ------------------------------------------------------------------------------------ |
+| Navigation | Navbar, Sidebar, Footer                                                              |
+| Blocks     | Hero, Features, Card, Contact form, Sign in, Pricing, Stats, CTA banner, Testimonial |
+
+A block is a starting point, not a widget. The moment it lands it is ordinary
+nodes — the editor keeps no memory that it was ever a block, so everything
+inside one can be moved, restyled or deleted like anything else, and one press
+of `Ctrl+Z` takes the whole thing back.
 
 **Tables and lists are edited as text.** A table has a Columns field
 (`Name | Role | Year`) and a Rows field, one row per line, cells separated by
@@ -238,6 +253,7 @@ project/
 │   │
 │   ├── registry/
 │   │   ├── elements.js           palette metadata, keyed by element kind
+│   │   ├── blocks.js             composite blocks — navbar, contact form, …
 │   │   └── inspector-schema.js   declarative property panel
 │   │
 │   ├── ui/
@@ -347,11 +363,15 @@ Most additions are one table row.
 - **A new CSS property** is an entry in `STYLE_FIELDS` in
   [`js/engine/style.js`](js/engine/style.js), plus a field in
   [`js/registry/inspector-schema.js`](js/registry/inspector-schema.js).
+- **A new block** — a whole arrangement like a navbar or a pricing card — is one
+  entry in [`js/registry/blocks.js`](js/registry/blocks.js) with a `build()`
+  that returns nodes. No engine change at all.
 
-Neither requires touching the compiler, the canvas, the inspector or the drag
-code — none of them branch on element type. Walkthroughs for both, and for
+None of these requires touching the compiler, the canvas, the inspector or the
+drag code — none of them branch on element type. Walkthroughs for both, and for
 adding a panel, a shortcut or an engine method, are in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+[CONTRIBUTING.md](CONTRIBUTING.md). What is planned next, and what is
+deliberately not, is in [ROADMAP.md](ROADMAP.md).
 
 ---
 

@@ -28,6 +28,7 @@ import { compileService } from './compile-service.js';
 import { Engine } from '../engine/index.js';
 import { FRAME_CHANNEL } from '../engine/preview-runtime.js';
 import { DEFAULT_TEMPLATE_ID, applyTo, buildTemplate, templateById } from '../templates/index.js';
+import { blockById } from '../registry/blocks.js';
 
 /** localStorage key for the autosaved document. */
 const AUTOSAVE_KEY = 'devlove.autosave.v1';
@@ -186,6 +187,34 @@ export class DevloveApp extends Emitter {
       this._syncSelectionFromEngine();
       this.invalidate();
       this.setStatus(`Added ${kind}`);
+    }
+    return id;
+  }
+
+  /**
+   * Drops a composite block from `registry/blocks.js` onto the page.
+   *
+   * @param {string} blockId
+   * @param {string | null} parentId
+   * @param {number} x
+   * @param {number} y
+   * @returns {string | null} the block's root id
+   */
+  addBlock(blockId, parentId, x, y) {
+    const block = blockById(blockId);
+    if (!block) {
+      this.setStatus(`No block called ${blockId}`, 'warn');
+      return null;
+    }
+    const id = this._safe(
+      `add ${block.label}`,
+      () => this.engine.addBlock(block.build(), parentId ?? null, x, y),
+      null
+    );
+    if (id) {
+      this._syncSelectionFromEngine();
+      this.invalidate();
+      this.setStatus(`Added ${block.label}`);
     }
     return id;
   }

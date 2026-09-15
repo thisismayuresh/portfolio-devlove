@@ -406,7 +406,7 @@ toggling `hidden` on elements tagged with `data-panel` in `index.html`.
 
 Four panels are pure renderers over data files:
 
-- `dl-palette` renders `registry/elements.js`;
+- `dl-palette` renders `registry/elements.js` and `registry/blocks.js`;
 - `dl-inspector` renders `registry/inspector-schema.js`;
 - `dl-help` renders the `BINDINGS` table _and_ the element registry, so a
   shortcut cannot exist without being documented;
@@ -414,6 +414,29 @@ Four panels are pure renderers over data files:
   element registry, so a palette hint and its key cannot drift apart.
 
 None contains a branch on element type. That is the extension point.
+
+### Blocks
+
+A **block** — a navbar, a contact form — is a subtree, not a kind. It is worth
+being clear about what that buys, because the tempting design is the other one.
+
+A block could have been a new element kind that renders several things. That
+would put a composite into `ELEMENT_KINDS`, and every consumer of that table —
+the compiler, the inspector, the layers tree, hit testing — would then need to
+know that some kinds have insides they do not own. Instead a block is a
+_builder_: `registry/blocks.js` returns the same ref-based node list a template
+returns, `Engine.addBlock` materialises it in one undo step, and after that the
+document contains nothing but ordinary nodes.
+
+So the editor has no concept of a block at all past the moment of the drop, and
+no feature added later has to grow a case for one. The cost is that instances
+are not linked — editing one navbar does not edit another. See `ROADMAP.md`,
+where linked blocks are an opt-in on top rather than a change to this.
+
+`Engine.addBlock` is also the one place that rolls back by hand. `_guard`
+discards its checkpoint when a mutation throws, but a discarded checkpoint does
+not restore the document — which is harmless for a one-node insert and would
+leave half a navbar stranded on the page for a twenty-node one.
 
 The inspector has one hand-written section, `_renderAlignSection`, and the
 reason is worth stating: the schema describes values a node _has_, and "align

@@ -83,28 +83,6 @@ export const GLYPHS = Object.freeze({
   info: '<circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.6M8 5.2v.9"/>',
   warning: '<path d="M8 2.6 14.2 13H1.8Z"/><path d="M8 6.6v3M8 11.2v.7"/>',
 
-  // --- align & distribute ---------------------------------------------------
-  alignLeft:
-    '<path d="M2.5 2v12"/><rect x="5" y="4" width="8.5" height="3"/><rect x="5" y="9" width="5.5" height="3"/>',
-  alignCentreX:
-    '<path d="M8 1.5v13"/><rect x="3.5" y="4" width="9" height="3"/><rect x="5.2" y="9" width="5.6" height="3"/>',
-  alignRight:
-    '<path d="M13.5 2v12"/><rect x="2.5" y="4" width="8.5" height="3"/><rect x="5.5" y="9" width="5.5" height="3"/>',
-  alignTop:
-    '<path d="M2 2.5h12"/><rect x="4" y="5" width="3" height="8.5"/><rect x="9" y="5" width="3" height="5.5"/>',
-  alignCentreY:
-    '<path d="M1.5 8h13"/><rect x="4" y="3.5" width="3" height="9"/><rect x="9" y="5.2" width="3" height="5.6"/>',
-  alignBottom:
-    '<path d="M2 13.5h12"/><rect x="4" y="2.5" width="3" height="8.5"/><rect x="9" y="5.5" width="3" height="5.5"/>',
-  distributeX:
-    '<path d="M1.5 2v12M14.5 2v12"/><rect x="4" y="5" width="2.5" height="6"/><rect x="9.5" y="5" width="2.5" height="6"/>',
-  distributeY:
-    '<path d="M2 1.5h12M2 14.5h12"/><rect x="5" y="4" width="6" height="2.5"/><rect x="5" y="9.5" width="6" height="2.5"/>',
-  group:
-    '<rect x="2" y="2" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/><path d="M2 11.5h1.5M12.5 2v1.5" opacity=".55"/>',
-  ungroup:
-    '<rect x="2" y="2" width="5" height="5"/><rect x="9" y="9" width="5" height="5"/><path d="M8.5 4.5h5M4.5 8.5v5" opacity=".55"/>',
-
   // --- device breakpoints ---------------------------------------------------
   phone: '<rect x="4.5" y="2" width="7" height="12"/><path d="M7 12.2h2"/>',
   tablet: '<rect x="3" y="2" width="10" height="12"/><path d="M7 12.2h2"/>',
@@ -125,6 +103,21 @@ export const GLYPHS = Object.freeze({
   droplet: '<path d="M8 2.2S3.6 7 3.6 9.6a4.4 4.4 0 0 0 8.8 0C12.4 7 8 2.2 8 2.2Z"/>',
   sparkle: '<path d="M8 2.2 9.3 6l3.8 1.3L9.3 8.6 8 12.4 6.7 8.6 2.9 7.3 6.7 6Z"/>',
   help: '<circle cx="8" cy="8" r="6"/><path d="M6.4 6.3a1.7 1.7 0 1 1 2 1.9v.9"/><path d="M8 11.4v.5"/>',
+
+  // --- composite blocks -----------------------------------------------------
+  // Each one is a miniature of the arrangement it drops in, so the tile shows
+  // the shape you are about to get rather than a generic box.
+  navbar:
+    '<rect x="1.5" y="3.5" width="13" height="9" opacity=".35"/><path d="M1.5 3.5h13v3h-13Z"/><path d="M3.2 5h2M8.4 5h1.4M10.6 5h1.4M12.8 5h.8"/>',
+  sidebar:
+    '<rect x="1.5" y="2.5" width="13" height="11" opacity=".35"/><path d="M1.5 2.5h4.6v11H1.5Z"/><path d="M2.8 5h2M2.8 7.2h2M2.8 9.4h2"/>',
+  footerBlock:
+    '<rect x="1.5" y="3.5" width="13" height="9" opacity=".35"/><path d="M1.5 9.5h13v3h-13Z"/><path d="M3.2 11h2.2M7.4 11h2.2"/>',
+  hero: '<rect x="1.5" y="2.5" width="13" height="11" opacity=".35"/><path d="M3.4 5.4h6M3.4 7.6h4.4"/><rect x="3.4" y="9.8" width="4" height="2.2"/>',
+  card: '<rect x="2.5" y="2" width="11" height="12"/><path d="M2.5 8h11"/><path d="M4.4 10h5M4.4 12h3"/>',
+  pricing:
+    '<rect x="2.5" y="1.8" width="11" height="12.4"/><path d="M5 4.6h6"/><path d="M4.4 7.4h7.2M4.4 9.2h7.2M4.4 11h4.4"/>',
+  stats: '<path d="M2 12.5V8.4M6.7 12.5V4.6M11.3 12.5V6.9M15 12.5V3"/>',
 });
 
 /**

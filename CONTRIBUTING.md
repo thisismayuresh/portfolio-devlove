@@ -344,6 +344,41 @@ Read state from `app.state` and from the engine; never keep your own copy.
 
 ---
 
+## Add a block
+
+A block is a whole arrangement — a navbar, a pricing card — that drops as one
+undo step. Adding one is a single entry in a group in `js/registry/blocks.js`:
+
+```js
+{
+  block: 'newsletter',              // unique id; the drag payload
+  label: 'Newsletter',              // the tile
+  icon: 'form',                     // must exist in ui/icons.js
+  hint: 'Email field and a subscribe button',
+  build: () => [
+    el('stack', { name: 'Newsletter', width: 420, layout: 'row', gap: 8 }, { ref: 'newsletter' }),
+    el('input', { name: 'Email', height: 44 }, { parent: 'newsletter' }),
+    el('button', { name: 'Subscribe', content: 'Subscribe' }, { parent: 'newsletter' }),
+  ],
+}
+```
+
+Three rules, all enforced by `tests/unit/blocks.test.js`:
+
+- **The first node is the root.** It takes the drop position, it is what ends up
+  selected, and everything else names it — or a later `ref` — as its parent.
+- **A `ref` must exist before it is used.** A node naming one that does not is
+  attached to the root rather than dropped, so a typo costs you a misplaced
+  element instead of a missing one; the test fails on it either way.
+- **Set only what the inspector can set.** A block that uses a property with no
+  inspector field can be dropped but never rebuilt by hand, which is a hole in
+  the tool rather than a clever block.
+
+Keep blocks in neutral greys. A block lands on a page whose palette you know
+nothing about, and recolouring one element is easier than recolouring nine.
+
+---
+
 ## Add a keyboard shortcut
 
 One entry in `BINDINGS` in `js/core/shortcuts.js`:

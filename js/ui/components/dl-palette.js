@@ -2,8 +2,13 @@
  * Left dock: the element palette.
  *
  * Tiles are pointer-drag sources handled by {@link module:core/drag-controller};
- * the canvas is the drop target. The two only agree on an element `kind`
- * string, so neither knows anything about the other.
+ * the canvas is the drop target. The two only agree on a payload — an element
+ * `kind` or a block `id` — so neither knows anything about the other.
+ *
+ * The panel shows two kinds of tile from two registries. A **blueprint** adds
+ * one node; a **block** adds a whole arrangement of them. They look the same
+ * and drag the same, and the only place that difference exists is the one line
+ * in `_renderTile` that picks which attribute to write.
  *
  * @module ui/components/dl-palette
  */
@@ -13,6 +18,7 @@ import { icon } from '../icons.js';
 import { app } from '../../core/app.js';
 import { dragController } from '../../core/drag-controller.js';
 import { BLUEPRINT_GROUPS } from '../../registry/elements.js';
+import { BLOCK_GROUPS } from '../../registry/blocks.js';
 
 export class DlPalette extends PanelElement {
   static styles = `
@@ -170,16 +176,18 @@ export class DlPalette extends PanelElement {
 
   _render() {
     const query = this._filter;
-    const groups = BLUEPRINT_GROUPS.map((group) => ({
-      title: group.title,
-      items: group.items.filter(
-        (item) =>
-          !query ||
-          item.label.toLowerCase().includes(query) ||
-          item.kind.includes(query) ||
-          item.hint.toLowerCase().includes(query)
-      ),
-    })).filter((group) => group.items.length > 0);
+    const groups = [...BLUEPRINT_GROUPS, ...BLOCK_GROUPS]
+      .map((group) => ({
+        title: group.title,
+        items: group.items.filter(
+          (item) =>
+            !query ||
+            item.label.toLowerCase().includes(query) ||
+            (item.kind || item.block).includes(query) ||
+            item.hint.toLowerCase().includes(query)
+        ),
+      }))
+      .filter((group) => group.items.length > 0);
 
     const body = this.$('#body');
     if (groups.length === 0) {
@@ -209,13 +217,22 @@ export class DlPalette extends PanelElement {
   }
 
   /**
-   * @param {import('../../registry/elements.js').Blueprint} item
+   * One tile, for either registry.
+   *
+   * A block carries `data-block` and an element carries `data-kind`; that
+   * single attribute is the whole difference, here and downstream.
+   *
+   * @param {import('../../registry/elements.js').Blueprint |
+   *         import('../../registry/blocks.js').Block} item
    * @returns {string}
    */
   _renderTile(item) {
+    const payload = item.block
+      ? `data-block="${esc(item.block)}"`
+      : `data-kind="${esc(item.kind)}"`;
     return `
       <button class="tile" type="button"
-              data-kind="${esc(item.kind)}"
+              ${payload}
               data-icon="${esc(item.icon)}"
               data-label="${esc(item.label)}"
               title="${esc(item.hint)}${item.shortcut ? ` — press ${item.shortcut}` : ''}">
@@ -227,13 +244,15 @@ export class DlPalette extends PanelElement {
 
   /** @param {PointerEvent} event */
   _onPointerDown(event) {
-    const tile = /** @type {HTMLElement} */ (event.target).closest('[data-kind]');
+    const tile = /** @type {HTMLElement} */ (event.target).closest(TILE_SELECTOR);
     if (!tile) {
       return;
     }
+    const block = tile.getAttribute('data-block');
     dragController.arm(event, {
-      type: 'blueprint',
-      kind: tile.getAttribute('data-kind'),
+      ...(block
+        ? { type: 'block', block }
+        : { type: 'blueprint', kind: tile.getAttribute('data-kind') }),
       label: tile.getAttribute('data-label'),
       iconName: tile.getAttribute('data-icon'),
     });
@@ -257,9 +276,9 @@ export class DlPalette extends PanelElement {
 
   /** @param {MouseEvent} event */
   _onDoubleClick(event) {
-    const tile = /** @type {HTMLElement} */ (event.target).closest('[data-kind]');
+    const tile = /** @type {HTMLElement} */ (event.target).closest(TILE_SELECTOR);
     if (tile) {
-      this._dropInView(tile.getAttribute('data-kind'));
+      this._dropInView(tile);
     }
   }
 
@@ -268,28 +287,36 @@ export class DlPalette extends PanelElement {
     if (event.key !== 'Enter' && event.key !== ' ') {
       return;
     }
-    const tile = /** @type {HTMLElement} */ (event.target).closest('[data-kind]');
+    const tile = /** @type {HTMLElement} */ (event.target).closest(TILE_SELECTOR);
     if (tile) {
       event.preventDefault();
-      this._dropInView(tile.getAttribute('data-kind'));
+      this._dropInView(tile);
     }
   }
 
   /**
-   * Keyboard and double-click path: place the element near the top-centre of
-   * the page so it is always visible without a drag.
+   * Keyboard and double-click path: place it near the top-centre of the page
+   * so it is always visible without a drag.
    *
-   * @param {string | null} kind
+   * @param {HTMLElement} tile
    */
-  _dropInView(kind) {
-    if (!kind) {
+  _dropInView(tile) {
+    const page = app.getPage();
+    const x = Math.round((Number(page.width) || 1280) / 2 - 160);
+    const block = tile.getAttribute('data-block');
+    if (block) {
+      app.addBlock(block, 'root', x, 64);
       return;
     }
-    const page = app.getPage();
-    const width = Number(page.width) || 1280;
-    app.addElement(kind, 'root', Math.round(width / 2 - 160), 64);
+    const kind = tile.getAttribute('data-kind');
+    if (kind) {
+      app.addElement(kind, 'root', x, 64);
+    }
   }
 }
+
+/** Matches a tile from either registry. */
+const TILE_SELECTOR = '[data-kind],[data-block]';
 
 /** Tiles per row; must match `grid-template-columns` above. */
 const COLUMNS = 3;

@@ -19,6 +19,18 @@ import { MAX_EMBED_BYTES, formatSize, readAsDataUrl } from '../../util/files.js'
 /** Pointer travel, in page pixels, before a press becomes a drag. */
 const DRAG_THRESHOLD = 3;
 
+/**
+ * How far outside a flow container the pointer must travel before a drag stops
+ * meaning "reorder" and starts meaning "take it out of here".
+ *
+ * Without an escape, a child of a Stack or Grid is trapped: its own `x`/`y` are
+ * never compiled, so the only gesture its parent understands is a reorder, and
+ * there is no way to drag a button out of a row and put it somewhere else. The
+ * margin keeps a normal reorder from becoming an escape when the pointer
+ * wanders a few pixels past the edge of a snug row.
+ */
+const FLOW_ESCAPE_MARGIN = 16;
+
 /** Snap radius in screen pixels; divided by zoom before use. */
 const SNAP_RADIUS = 6;
 
@@ -861,7 +873,27 @@ export class DlCanvas extends PanelElement {
        */
       flow: this._parentFlows(node),
       dropIndex: -1,
+      /**
+       * Where inside the element the pointer took hold of it, in page
+       * coordinates. A flow child's `x`/`y` are meaningless, so this is the
+       * only way to put it down where it looks like it was dropped.
+       */
+      grab: this._grabOffset(hit, point),
+      /** Set once the pointer leaves a flow parent. See `_updateFlowMove`. */
+      escaped: false,
     };
+  }
+
+  /**
+   * How far into an element the pointer is, measured from its top-left.
+   *
+   * @param {string} id
+   * @param {{x: number, y: number}} point page coordinates
+   * @returns {[number, number]}
+   */
+  _grabOffset(id, point) {
+    const rect = app.rectOf(id);
+    return rect ? [point.x - rect[0], point.y - rect[1]] : [0, 0];
   }
 
   /**
@@ -1096,6 +1128,25 @@ export class DlCanvas extends PanelElement {
       return;
     }
 
+    // Far enough outside the parent and this is no longer a reorder. Hand the
+    // rest of the drag to the same drop-target preview an absolutely
+    // positioned element uses, so the two gestures look identical from here on.
+    const escaped = this._hasLeftParent(point, gesture.parentId);
+    if (escaped !== gesture.escaped) {
+      gesture.escaped = escaped;
+      app.setStatus(
+        escaped ? 'Release to take it out of the container' : 'Drop to reorder',
+        'muted'
+      );
+    }
+    if (escaped) {
+      this._setMarker('#insertLine', null);
+      this._previewDropTarget(point, gesture.id, gesture.parentId);
+      this._drawMarkers();
+      return;
+    }
+    this._setMarker('#dropMarker', null);
+
     const siblings = parent.children;
     const vertical = parent.layout !== 'row';
     const along = vertical ? point.y : point.x;
@@ -1117,6 +1168,30 @@ export class DlCanvas extends PanelElement {
     gesture.dropIndex = index;
     this._paintInsertLine(parent, siblings, index, vertical);
     this._drawMarkers();
+  }
+
+  /**
+   * Whether the pointer has left a container by more than the escape margin.
+   *
+   * Measured against the container's real box on screen rather than its
+   * declared size, because a hugging Stack is only as big as what is in it.
+   *
+   * @param {{x: number, y: number}} point page coordinates
+   * @param {string} parentId
+   * @returns {boolean}
+   */
+  _hasLeftParent(point, parentId) {
+    const rect = app.rectOf(parentId);
+    if (!rect) {
+      return false;
+    }
+    const [left, top, width, height] = rect;
+    return (
+      point.x < left - FLOW_ESCAPE_MARGIN ||
+      point.x > left + width + FLOW_ESCAPE_MARGIN ||
+      point.y < top - FLOW_ESCAPE_MARGIN ||
+      point.y > top + height + FLOW_ESCAPE_MARGIN
+    );
   }
 
   /**
@@ -1161,6 +1236,10 @@ export class DlCanvas extends PanelElement {
 
     if (gesture.flow) {
       this._setMarker('#insertLine', null);
+      if (gesture.escaped) {
+        this._dropOutOfFlow(point, gesture);
+        return;
+      }
       const parent = app.getNode(gesture.parentId);
       const from = parent ? parent.children.indexOf(gesture.id) : -1;
       let to = gesture.dropIndex;
@@ -1570,6 +1649,10 @@ export class DlCanvas extends PanelElement {
         app.addElement(payload.kind, parent, Math.round(local[0]), Math.round(local[1]));
         return;
       }
+      if (payload.type === 'block') {
+        app.addBlock(payload.block, parent, Math.round(local[0]), Math.round(local[1]));
+        return;
+      }
       if (payload.type === 'node' && payload.id) {
         if (app.reparent(payload.id, parent, -1)) {
           app.moveElement(payload.id, Math.round(local[0]), Math.round(local[1]));
@@ -1612,6 +1695,33 @@ export class DlCanvas extends PanelElement {
     }
     app.select(hit);
     this._openTextEditor(hit, node);
+  }
+
+  /**
+   * Takes a flow child out of its container and puts it wherever the pointer
+   * released it.
+   *
+   * The element's stored `x`/`y` are whatever they were before it was ever put
+   * in a Stack, so they are no help. The position comes from the pointer and
+   * the grab offset instead, which is what makes the element land under the
+   * cursor rather than jumping to a stale coordinate.
+   *
+   * @param {{x: number, y: number}} point
+   * @param {any} gesture
+   */
+  _dropOutOfFlow(point, gesture) {
+    this._setMarker('#dropMarker', null);
+    const target = app.engine.dropTarget(point.x, point.y, gesture.id);
+    if (!target || target === gesture.parentId) {
+      app.setStatus('Left it where it was', 'muted');
+      return;
+    }
+    if (!app.reparent(gesture.id, target, -1)) {
+      return;
+    }
+    const local = this._localPoint(target, point.x - gesture.grab[0], point.y - gesture.grab[1]);
+    app.moveElement(gesture.id, Math.round(local[0]), Math.round(local[1]));
+    app.setStatus(target === 'root' ? 'Moved to the page' : 'Nested inside a container');
   }
 
   /**

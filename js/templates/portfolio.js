@@ -35,26 +35,19 @@ const COLUMN = 960;
  */
 const ROLES = [
   {
-    dates: '2023 — now',
-    title: 'Full-stack engineer',
-    company: 'Northwind Labs',
+    dates: '2026 — now',
+    title: 'Software Engineer',
+    company: 'NSWS',
     summary:
-      'Billing and reporting for a B2B dashboard — React and NestJS over Postgres. Took the slowest report from four seconds to under two hundred milliseconds by removing an N+1 and adding the index it had been missing since launch.',
+      '',
   },
   {
-    dates: '2022 — 2023',
-    title: 'Backend developer',
-    company: 'Tidepool Systems',
+    dates: '2024 — 2025',
+    title: 'Full Stack developer',
+    company: 'Knovator Technologies',
     summary:
-      'Moved an order pipeline off overnight cron jobs and onto Kafka, with idempotent consumers so a retry could never charge someone twice. Wrote the load tests that showed it held at ten times the traffic.',
-  },
-  {
-    dates: '2021 — 2022',
-    title: 'Frontend developer, contract',
-    company: 'Two agencies',
-    summary:
-      'Design-system components in Storybook for three product teams, with Jest and Vitest coverage on the ones everyone else built on top of.',
-  },
+      '',
+  }
 ];
 
 /** @returns {{page: Record<string, any>, nodes: any[]}} */
@@ -62,8 +55,7 @@ export function build() {
   return {
     page: {
       title: 'Mayur K — full-stack engineer',
-      description:
-        'Full-stack developer with a computer science background. React and Next.js on Node and NestJS, with the fundamentals underneath — data structures, databases, networks and system design.',
+      description:"",
       width: 1280,
       minHeight: 4074,
       background: T.surface,
@@ -193,7 +185,7 @@ export function build() {
           borderColor: T.line,
           transition: 160,
           'data.action': 'copy',
-          'data.target': 'mayur@example.com',
+          'data.target': '',
         },
         { parent: 'hero-cta' }
       ),
@@ -294,10 +286,9 @@ export function build() {
           color: T.muted,
           'data.columns': 'Project | What it does | Stack | Shipped',
           'data.rows': [
-            'Chatterbox | Group chat with read receipts and typing state | React, Socket.IO, Mongo | 2024',
-            'Ledger | Invoicing for freelancers, with recurring billing | Next.js, Postgres, Stripe | 2023',
-            'Shelf | Reading tracker that imports from Goodreads | React Native, Express | 2023',
-            'Pulse | Uptime monitor with a status page per project | Node, Redis, Fastify | 2022',
+            'NL2SQL | Bridges the gap between teams and data by turning everyday language into instant SQL queries.  | Next.js, MongoDB, Nest Js, Ollama, AI Agents | 2026',
+            'Unnati Finserv | LMS & LOS and Admin Panelfor a NBFC Client | React js, Express, Potgresql | 2026',
+            'Impler | Data Import SaaS for Dev Teams | Node, Next, Nest js ,Redis, Fastify | 2025',
           ].join('\n'),
         },
         { parent: 'work', x: GUTTER, y: 176 }
@@ -310,7 +301,7 @@ export function build() {
           fontSize: 17,
           color: T.ink,
           content:
-            'Mayur rewrote our search in a week and it went from four seconds to under two hundred milliseconds. No drama, no rewrite of everything else.',
+            '',
         },
         { parent: 'work', x: GUTTER, y: 446 }
       ),
@@ -501,8 +492,8 @@ export function build() {
         {
           name: 'Email link',
           width: 300,
-          content: 'mayur@example.com',
-          href: 'mailto:mayur@example.com',
+          content: '',
+          href: 'mailto:',
           fontSize: 18,
           color: T.ink,
           fontWeight: '600',
@@ -523,9 +514,8 @@ export function build() {
         { ref: 'profiles', parent: 'contact-details' }
       ),
       ...[
-        { label: 'LinkedIn', href: 'https://www.linkedin.com/in/your-handle' },
-        { label: 'GitHub', href: 'https://github.com/your-handle' },
-        { label: 'Read.cv', href: 'https://read.cv/your-handle' },
+        { label: 'LinkedIn', href: 'https://www.linkedin.com/in/mayur-kaikadi-69b59322b' },
+        { label: 'GitHub', href: 'https://github.com/thisismayuresh' },
       ].map((profile) =>
         el(
           'link',
