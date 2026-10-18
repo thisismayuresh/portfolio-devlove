@@ -7,3 +7,9 @@ package-lock.json
 Thumbs.db
 .idea/
 .vscode/
+
+# Local agent working rules — not part of the project.
+AGENTS.md
+
+# Personal resume notes — never commit.
+RESUME.md

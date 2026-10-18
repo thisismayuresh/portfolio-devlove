@@ -406,6 +406,86 @@ async function driveEditor(session) {
   })()`);
   check('undo reverses the last change', undone.accepted && undone.changed, JSON.stringify(undone));
 
+  // --- context menu -------------------------------------------------------
+  // Right-click where the selection actually sits now, not where it sat
+  // before the drag above moved it.
+  const ctxPoint = await session.evaluate(`(() => {
+    const app = window.__devlove;
+    const overlay = document.querySelector('dl-canvas').shadowRoot.querySelector('#overlay');
+    const box = overlay.getBoundingClientRect();
+    const rect = app.rectOf(app.state.selection);
+    if (!rect) return null;
+    return {
+      x: box.left + (rect[0] + rect[2] / 2) * app.state.zoom,
+      y: box.top + (rect[1] + rect[3] / 2) * app.state.zoom,
+    };
+  })()`);
+  if (!ctxPoint) {
+    check('context menu has a point to right-click', false);
+    return lines;
+  }
+
+  const rightClick = async () => {
+    await mouse('mousePressed', ctxPoint.x, ctxPoint.y, { button: 'right', buttons: 2 });
+    await mouse('mouseReleased', ctxPoint.x, ctxPoint.y, { button: 'right', buttons: 0 });
+  };
+  const menuOpenState = () =>
+    session.evaluate(
+      `document.querySelector('dl-context-menu').getAttribute('data-open') === 'true'`
+    );
+
+  await rightClick();
+  await sleep(200);
+  check('right-click opens the context menu', await menuOpenState());
+
+  const menuItems = await session.evaluate(`(() => {
+    const menu = document.querySelector('dl-context-menu').shadowRoot.querySelector('#menu');
+    return [...menu.querySelectorAll('.item')].map((b) => b.textContent.trim());
+  })()`);
+  check(
+    'the menu offers element actions',
+    menuItems.some((label) => label.startsWith('Duplicate')) &&
+      menuItems.some((label) => label.startsWith('Delete')) &&
+      menuItems.some((label) => label.startsWith('Copy')),
+    `${menuItems.length} items`
+  );
+
+  // Escape dismisses without touching the document.
+  await session.send('Input.dispatchKeyEvent', {
+    type: 'keyDown',
+    key: 'Escape',
+    code: 'Escape',
+    windowsVirtualKeyCode: 27,
+  });
+  await session.send('Input.dispatchKeyEvent', {
+    type: 'keyUp',
+    key: 'Escape',
+    code: 'Escape',
+    windowsVirtualKeyCode: 27,
+  });
+  await sleep(150);
+  check('Escape closes the context menu', !(await menuOpenState()));
+
+  // Choose an item: Duplicate from the menu really copies.
+  const menuCountBefore = await session.evaluate('window.__devlove.engine.nodeCount()');
+  await rightClick();
+  await sleep(200);
+  const clicked = await session.evaluate(`(() => {
+    const menu = document.querySelector('dl-context-menu').shadowRoot.querySelector('#menu');
+    const duplicate = [...menu.querySelectorAll('.item')]
+      .find((button) => button.textContent.includes('Duplicate'));
+    if (!duplicate || duplicate.disabled) return false;
+    duplicate.click();
+    return true;
+  })()`);
+  await sleep(300);
+  const menuCountAfter = await session.evaluate('window.__devlove.engine.nodeCount()');
+  check(
+    'choosing Duplicate from the menu copies the element',
+    clicked && menuCountAfter > menuCountBefore,
+    `${menuCountBefore} → ${menuCountAfter} nodes`
+  );
+
   return lines;
 }
 

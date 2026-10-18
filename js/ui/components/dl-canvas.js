@@ -687,7 +687,9 @@ export class DlCanvas extends PanelElement {
       }
     });
     this.bind(this.overlay, 'dblclick', (e) => this._onDoubleClick(/** @type {MouseEvent} */ (e)));
-    this.bind(this.overlay, 'contextmenu', (e) => e.preventDefault());
+    this.bind(this.overlay, 'contextmenu', (e) =>
+      this._onContextMenu(/** @type {MouseEvent} */ (e))
+    );
 
     // Dropping an image file from the desktop is the one place this codebase
     // uses the native drag-and-drop API. Element dragging deliberately does
@@ -696,6 +698,132 @@ export class DlCanvas extends PanelElement {
     this.bind(this.overlay, 'dragover', (e) => this._onFileDragOver(/** @type {DragEvent} */ (e)));
     this.bind(this.overlay, 'dragleave', () => this._setMarker('#dropMarker', null));
     this.bind(this.overlay, 'drop', (e) => this._onFileDrop(/** @type {DragEvent} */ (e)));
+  }
+
+  // ======================================================== context menu ===
+
+  /**
+   * Right-click.
+   *
+   * The menu's contents are decided here, from what the pointer actually hit,
+   * and handed to `dl-context-menu` as data. The hit becomes the selection
+   * first, so the menu always acts on the thing under the cursor — right-click
+   * is also a way of saying "this one".
+   *
+   * @param {MouseEvent} event
+   */
+  _onContextMenu(event) {
+    // Always swallowed: the browser's own menu over a design canvas is never
+    // what anyone wants, even mid-boot.
+    event.preventDefault();
+    if (app.state.mode !== 'design' || !app.engine) {
+      return;
+    }
+    if (this._editing) {
+      this._closeTextEditor(true);
+    }
+
+    const point = this._toPagePoint(event);
+    const hit = app.engine.hitTest(point.x, point.y);
+
+    // A hit already inside the selection keeps the selection (right-click
+    // works on the group); anything else is replaced by what was clicked.
+    if (hit && !app.isSelected(hit)) {
+      app.select(hit);
+    }
+
+    const node = hit ? app.getNode(hit) : null;
+    const items = this._contextMenuItems(hit, node);
+    if (items.length === 0) {
+      return;
+    }
+    app.emit('context:open', { x: event.clientX, y: event.clientY, items });
+  }
+
+  /**
+   * The menu for one right-click, built from what it hit.
+   *
+   * Every entry calls the same public method the keyboard shortcut or the
+   * inspector button does — the menu is another surface onto the app, never a
+   * second implementation of it.
+   *
+   * @param {string | null} hit the element under the pointer, if any
+   * @param {any | null} node its document node
+   * @returns {any[]} items for `dl-context-menu`, possibly empty
+   */
+  _contextMenuItems(hit, node) {
+    if (!hit || !node) {
+      // Page level: actions on the document, not on a thing on it.
+      return [
+        {
+          label: 'Paste',
+          keys: 'ctrl+v',
+          run: () => app.pasteClipboard(),
+          disabled: !app.hasClipboard(),
+        },
+        { label: 'Select all', keys: 'ctrl+a', run: () => app.selectSiblings() },
+        '---',
+        { label: 'Undo', keys: 'ctrl+z', run: () => app.undo() },
+        { label: 'Redo', keys: 'ctrl+shift+z', run: () => app.redo() },
+        '---',
+        { label: 'Fit page to screen', run: () => this.zoomToFit() },
+      ];
+    }
+
+    const locked = Boolean(node.locked);
+    const selected = app.state.selected.filter((id) => id !== 'root');
+    const hasChildren = selected.some((id) => {
+      const child = app.getNode(id);
+      return child && child.children.length > 0;
+    });
+
+    return [
+      EDITABLE_KINDS.has(node.kind) && !locked
+        ? {
+            label: 'Edit text',
+            run: () => {
+              app.select(hit);
+              this._openTextEditor(hit, node);
+            },
+          }
+        : null,
+      '---',
+      { label: 'Cut', keys: 'ctrl+x', run: () => app.cutSelection(), disabled: locked },
+      { label: 'Copy', keys: 'ctrl+c', run: () => app.copySelection() },
+      {
+        label: 'Paste',
+        keys: 'ctrl+v',
+        run: () => app.pasteClipboard(),
+        disabled: !app.hasClipboard(),
+      },
+      { label: 'Duplicate', keys: 'ctrl+d', run: () => app.duplicateSelection(), disabled: locked },
+      '---',
+      { label: 'Bring forward', keys: 'ctrl+]', run: () => app.reorderSelection(1) },
+      { label: 'Send backward', keys: 'ctrl+[', run: () => app.reorderSelection(-1) },
+      selected.length > 1
+        ? { label: 'Group selection', keys: 'ctrl+g', run: () => app.groupSelection() }
+        : null,
+      hasChildren
+        ? { label: 'Ungroup', keys: 'ctrl+shift+g', run: () => app.ungroupSelection() }
+        : null,
+      '---',
+      {
+        label: locked ? 'Unlock' : 'Lock',
+        run: () => app.setProperty(hit, 'locked', locked ? 'false' : 'true'),
+      },
+      {
+        label: node.hidden ? 'Show' : 'Hide',
+        run: () => app.setProperty(hit, 'hidden', node.hidden ? 'false' : 'true'),
+      },
+      '---',
+      {
+        label: 'Delete',
+        keys: 'delete',
+        run: () => app.removeSelection(),
+        disabled: locked,
+        danger: true,
+      },
+    ].filter(Boolean);
   }
 
   // ========================================================== file drops ===

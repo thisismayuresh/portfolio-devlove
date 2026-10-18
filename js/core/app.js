@@ -65,6 +65,12 @@ export class DevloveApp extends Emitter {
     /** @type {HTMLIFrameElement | null} */
     this.frame = null;
 
+    /**
+     * Whether boot seeded the default template rather than restoring a save.
+     * The welcome card reads it so its copy matches what is on the canvas.
+     */
+    this.firstRun = false;
+
     this.state = {
       ready: false,
       mode: /** @type {'design' | 'preview'} */ ('design'),
@@ -109,6 +115,7 @@ export class DevloveApp extends Emitter {
     window.addEventListener('message', this._onFrameMessage);
 
     if (!this._restoreAutosave()) {
+      this.firstRun = true;
       this.applyTemplate(buildTemplate(DEFAULT_TEMPLATE_ID));
     }
     // Seeding a document goes through the same mutations a user would make,
@@ -284,6 +291,19 @@ export class DevloveApp extends Emitter {
       this.removeSelection();
       this.setStatus('Cut');
     }
+  }
+
+  /**
+   * Whether the in-app clipboard holds anything.
+   *
+   * Surfaces exist that offer Paste conditionally (the context menu greys the
+   * item out); `pasteClipboard` itself stays a no-op-with-status rather than
+   * an error either way.
+   *
+   * @returns {boolean}
+   */
+  hasClipboard() {
+    return Boolean(this._clipboard && this._clipboard.roots.length > 0);
   }
 
   /**
