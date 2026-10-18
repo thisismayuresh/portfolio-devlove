@@ -38,16 +38,14 @@ const ROLES = [
     dates: '2026 — now',
     title: 'Software Engineer',
     company: 'NSWS',
-    summary:
-      '',
+    summary: '',
   },
   {
     dates: '2024 — 2025',
     title: 'Full Stack developer',
     company: 'Knovator Technologies',
-    summary:
-      '',
-  }
+    summary: '',
+  },
 ];
 
 /** @returns {{page: Record<string, any>, nodes: any[]}} */
@@ -55,7 +53,7 @@ export function build() {
   return {
     page: {
       title: 'Mayur K — full-stack engineer',
-      description:"",
+      description: '',
       width: 1280,
       minHeight: 4074,
       background: T.surface,
@@ -118,7 +116,7 @@ export function build() {
         {
           name: 'Greeting',
           width: 540,
-          content: "Hi, I'm Mayur!",
+          content: "Hello, I'm Mayur!",
           // Ink, not the accent. A greeting is the first line someone reads,
           // and colouring it turns it into a label for the headline instead of
           // a sentence in its own right. Sized to lead into the headline
@@ -134,8 +132,8 @@ export function build() {
       ...heading({
         ref: 'hero-head',
         parent: 'hero-col',
-        title: 'I build web apps\nwith computer science at their core.',
-        body: 'A computer science degree and three years shipping production React on Node, from Pune. I like the parts underneath as much as the parts you can see: how the data is modelled, why a query is slow, where a system gives way when it is asked for ten times as much.',
+        title: 'I ❤️ Computer Science,\nand build apps with it.',
+        body: 'A computer science degree and three years shipping production React on Node, from Pune.',
         width: 540,
         size: 46,
         theme: T,
@@ -217,6 +215,52 @@ export function build() {
         },
         { parent: 'hero', x: 720, y: 130 }
       ),
+      // The meta-note. The editor boots with *this* portfolio on the canvas,
+      // so the page doubles as the builder's demo — a first-time visitor
+      // should be told that in plain words. A stack, not a fixed-height card:
+      // the copy's height is text's business, not a template author's.
+      el(
+        'stack',
+        {
+          name: 'Builder note',
+          width: 400,
+          layout: 'column',
+          gap: 10,
+          padding: 20,
+          background: T.wash,
+          radius: 12,
+          borderWidth: 1,
+          borderColor: T.line,
+        },
+        { ref: 'builder-note', parent: 'hero', x: 720, y: 430 }
+      ),
+      el(
+        'text',
+        {
+          name: 'Builder note eyebrow',
+          width: 360,
+          content: 'Built with devlove',
+          fontSize: 12,
+          fontWeight: '700',
+          color: T.accent,
+          textTransform: 'uppercase',
+          letterSpacing: 0.9,
+        },
+        { parent: 'builder-note' }
+      ),
+      el(
+        'text',
+        {
+          name: 'Builder note copy',
+          width: 360,
+          content:
+            'This is the default page devlove opens with — a drag-and-drop website builder written in plain JavaScript, no framework and no build step. Double-click any text to edit it, drag new elements from the palette, or press ? for shortcuts.',
+          fontSize: 14,
+          lineHeight: 1.6,
+          color: T.muted,
+        },
+        { parent: 'builder-note' }
+      ),
 
       /* =========================================================== skills === */
       band('skills', {
@@ -232,7 +276,7 @@ export function build() {
         x: GUTTER,
         y: 68,
         title: 'What I work with',
-        body: 'Grouped by where it sits in the stack, not ranked out of ten — a bar chart of my own opinion of myself is not evidence of anything.',
+        body: 'Grouped by where it sits in the stack, not ranked out of ten.',
         width: 620,
         theme: T,
       }),
@@ -286,9 +330,9 @@ export function build() {
           color: T.muted,
           'data.columns': 'Project | What it does | Stack | Shipped',
           'data.rows': [
-            'NL2SQL | Bridges the gap between teams and data by turning everyday language into instant SQL queries.  | Next.js, MongoDB, Nest Js, Ollama, AI Agents | 2026',
-            'Unnati Finserv | LMS & LOS and Admin Panelfor a NBFC Client | React js, Express, Potgresql | 2026',
-            'Impler | Data Import SaaS for Dev Teams | Node, Next, Nest js ,Redis, Fastify | 2025',
+            'NL2SQL | Turns everyday language into instant SQL queries. | Next.js, MongoDB, Nest Js, Ollama, AI Agents | 2026',
+            'Unnati Finserv | LMS & LOS and Admin Panel for an NBFC client | React js, Express, PostgreSQL | 2026',
+            'Impler | Data Import SaaS for Dev Teams | Node, Next, Nest js, Redis, Fastify | 2025',
           ].join('\n'),
         },
         { parent: 'work', x: GUTTER, y: 176 }
@@ -300,8 +344,7 @@ export function build() {
           width: 620,
           fontSize: 17,
           color: T.ink,
-          content:
-            '',
+          content: '',
         },
         { parent: 'work', x: GUTTER, y: 446 }
       ),
@@ -320,7 +363,7 @@ export function build() {
         x: GUTTER,
         y: 68,
         title: 'Where I have worked',
-        body: 'Three years, three teams, and a reasonable amount of on-call.',
+        body: 'Three years, three teams.',
         width: 560,
         theme: T,
       }),
@@ -414,7 +457,6 @@ export function build() {
         x: GUTTER,
         y: 68,
         title: 'A bit about me',
-        body: 'I started out fixing a broken WordPress site for a family business and never quite stopped. A CS degree gave me the vocabulary for what I had been doing by feel — and the habit of reaching for a profiler before a rewrite.',
         width: 440,
         theme: T,
       }),
@@ -423,7 +465,7 @@ export function build() {
         {
           name: 'List heading',
           width: 300,
-          content: 'Fundamentals I lean on',
+          content: 'Fundamentals',
           fontSize: 13,
           fontWeight: '700',
           color: T.ink,
@@ -455,7 +497,7 @@ export function build() {
         {
           name: 'Education',
           width: 440,
-          content: 'B.E. Computer Science, 2022. Still the best four years of reading I have done.',
+          content: 'B.E. Computer Science, 2022.',
           fontSize: 14.5,
           lineHeight: 1.7,
           color: T.faint,
@@ -476,7 +518,6 @@ export function build() {
         x: GUTTER,
         y: 76,
         title: 'Got something to build?',
-        body: 'Freelance and contract work, part-time from June. Tell me roughly what you need and I will tell you honestly whether I am the right person.',
         width: 440,
         theme: T,
       }),
@@ -622,7 +663,7 @@ export function build() {
         y: 3931,
         gutter: GUTTER,
         width: COLUMN,
-        note: 'Built 💖 with devlove. Everything on this page is editable — start anywhere.',
+        note: 'Built 💖 with devlove — a drag-and-drop website builder written in plain JavaScript. Every word, table and form on this page was placed in the editor; double-click any of it to start building.',
         theme: { ...T, muted: T.faint },
       }),
     ],
