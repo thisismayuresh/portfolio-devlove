@@ -171,6 +171,7 @@ export class DlHelp extends PanelElement {
             <p class="note">
               Hold <span class="kbd">Ctrl</span> and click to select more than one element.
               Drag inside a Stack or Grid to reorder it; drag anywhere else to move.
+              Right-click anything on the canvas for the actions that apply to it.
             </p>
           </div>
         </div>
