@@ -41,6 +41,7 @@ const SUITES = [
   { name: 'engine + preview frame', path: '/tests/smoke.html' },
   { name: 'editor interactions', path: '/', drive: driveEditor },
   { name: 'aux panels + palette', path: '/', drive: driveAux },
+  { name: 'sidebars', path: '/', drive: driveSidebars },
 ];
 
 const HEADFUL = process.argv.includes('--headful');
@@ -910,6 +911,184 @@ async function driveAux(session) {
     'the element settles on the guide and the guide hides',
     Math.abs(settled.x - settled.best) <= 6 && settled.on !== 'true',
     JSON.stringify(settled)
+  );
+
+  return lines;
+}
+
+// ---- sidebars ---------------------------------------------------------------
+
+async function driveSidebars(session) {
+  const lines = [];
+  const check = (name, ok, detail = '') =>
+    lines.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
+
+  await until(
+    () => session.evaluate('Boolean(window.__devlove && window.__devlove.state.ready)'),
+    'the editor to boot'
+  );
+  check('editor boots', true);
+
+  /** Presses and releases one key the way a human would type it. */
+  const tapKey = async ({ key, code, windowsVirtualKeyCode, modifiers = 0 }) => {
+    await session.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key,
+      code,
+      windowsVirtualKeyCode,
+      modifiers,
+    });
+    await session.send('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key,
+      code,
+      windowsVirtualKeyCode,
+      modifiers: 0,
+    });
+  };
+
+  const measure = () =>
+    session.evaluate(`(() => {
+      const shell = document.getElementById('shell');
+      const dock = document.getElementById('left-dock');
+      const inspector = document.querySelector('dl-inspector');
+      const stage = document.querySelector('.shell__stage');
+      const rail = document.querySelector('dl-rail');
+      return {
+        left: shell.getAttribute('data-left-sidebar'),
+        right: shell.getAttribute('data-right-sidebar'),
+        dockW: Math.round(dock.getBoundingClientRect().width),
+        inspW: Math.round(inspector.getBoundingClientRect().width),
+        stageW: Math.round(stage.getBoundingClientRect().width),
+        railW: Math.round(rail.getBoundingClientRect().width),
+      };
+    })()`);
+
+  const toggle = (side) =>
+    session.evaluate(`(() => {
+      const bar = document.querySelector('dl-toolbar');
+      const button = bar.shadowRoot.querySelector('[data-action="toggle-${side}"]');
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`);
+
+  const railClickActive = () =>
+    session.evaluate(`(() => {
+      const rail = document.querySelector('dl-rail');
+      const slot = rail.shadowRoot.querySelector('[data-panel="elements"]');
+      if (!slot) return false;
+      slot.click();
+      return true;
+    })()`);
+
+  // --- default state -------------------------------------------------------
+  const open = await measure();
+  check(
+    'the left sidebar starts open',
+    open.left === 'open' && open.dockW > 0 && open.railW > 0,
+    JSON.stringify(open)
+  );
+  check(
+    'the right sidebar starts open',
+    open.right === 'open' && open.inspW > 0,
+    JSON.stringify(open)
+  );
+
+  // --- toolbar toggles -----------------------------------------------------
+  const clicked = await toggle('left');
+  const t1 = await measure();
+  check(
+    'the toolbar hides the left sidebar',
+    clicked && t1.left === 'collapsed' && t1.dockW === 0 && t1.stageW > open.stageW,
+    JSON.stringify(t1)
+  );
+  check('the rail stays visible when the dock folds', t1.railW > 0, `rail=${t1.railW}`);
+
+  await toggle('left');
+  const t2 = await measure();
+  check(
+    'the toolbar shows the left sidebar again',
+    t2.left === 'open' && t2.dockW > 0 && Math.abs(t2.stageW - open.stageW) <= 1,
+    JSON.stringify(t2)
+  );
+
+  await toggle('right');
+  const t3 = await measure();
+  check(
+    'the toolbar hides the right sidebar',
+    t3.right === 'collapsed' && t3.inspW === 0 && t3.stageW > open.stageW,
+    JSON.stringify(t3)
+  );
+  await toggle('right');
+  const t4 = await measure();
+  check(
+    'the toolbar shows the right sidebar again',
+    t4.right === 'open' && t4.inspW > 0,
+    JSON.stringify(t4)
+  );
+
+  // --- keyboard ------------------------------------------------------------
+  await tapKey({ key: 'b', code: 'KeyB', windowsVirtualKeyCode: 66, modifiers: 2 });
+  const k1 = await measure();
+  check(
+    'Ctrl+B hides the left sidebar',
+    k1.left === 'collapsed' && k1.dockW === 0,
+    JSON.stringify(k1)
+  );
+  await tapKey({ key: 'b', code: 'KeyB', windowsVirtualKeyCode: 66, modifiers: 2 });
+  const k2 = await measure();
+  check('Ctrl+B shows it again', k2.left === 'open' && k2.dockW > 0, JSON.stringify(k2));
+
+  await tapKey({ key: 'b', code: 'KeyB', windowsVirtualKeyCode: 66, modifiers: 3 });
+  const k3 = await measure();
+  check(
+    'Ctrl+Alt+B hides the right sidebar',
+    k3.right === 'collapsed' && k3.inspW === 0,
+    JSON.stringify(k3)
+  );
+  await tapKey({ key: 'b', code: 'KeyB', windowsVirtualKeyCode: 66, modifiers: 3 });
+  const k4 = await measure();
+  check('Ctrl+Alt+B shows it again', k4.right === 'open' && k4.inspW > 0, JSON.stringify(k4));
+
+  // --- rail active-tab fold ----------------------------------------------
+  const pressed = await railClickActive();
+  const r1 = await measure();
+  check(
+    'clicking the active rail icon folds the dock',
+    pressed && r1.left === 'collapsed' && r1.dockW === 0,
+    JSON.stringify(r1)
+  );
+  await railClickActive();
+  const r2 = await measure();
+  check(
+    'clicking it again unfolds the dock',
+    r2.left === 'open' && r2.dockW > 0,
+    JSON.stringify(r2)
+  );
+
+  // --- a panel request unfolds a folded dock ------------------------------
+  await tapKey({ key: 'b', code: 'KeyB', windowsVirtualKeyCode: 66, modifiers: 2 });
+  await tapKey({ key: '1', code: 'Digit1', windowsVirtualKeyCode: 49 });
+  const d1 = await measure();
+  check(
+    'pressing 1 unfolds the dock for its panel',
+    d1.left === 'open' && d1.dockW > 0,
+    JSON.stringify(d1)
+  );
+
+  // --- preview outranks the sidebars, design restores them ----------------
+  await session.evaluate('window.__devlove.setMode("preview")');
+  await sleep(150);
+  const p1 = await measure();
+  check('preview hides both sidebars', p1.dockW === 0 && p1.inspW === 0, JSON.stringify(p1));
+  await session.evaluate('window.__devlove.setMode("design")');
+  await sleep(150);
+  const p2 = await measure();
+  check(
+    'design restores both sidebars',
+    p2.left === 'open' && p2.right === 'open' && p2.dockW > 0 && p2.inspW > 0,
+    JSON.stringify(p2)
   );
 
   return lines;
