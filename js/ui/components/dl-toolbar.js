@@ -7,7 +7,7 @@
 import { PanelElement } from '../panel-element.js';
 import { icon } from '../icons.js';
 import { app } from '../../core/app.js';
-import { downloadText, pickTextFile } from '../../util/files.js';
+import { downloadText, pickTextFile, slug } from '../../util/files.js';
 
 export class DlToolbar extends PanelElement {
   static styles = `
@@ -217,18 +217,6 @@ export class DlToolbar extends PanelElement {
       button.setAttribute('aria-pressed', String(button.getAttribute('data-mode') === mode));
     }
   }
-}
-
-/**
- * @param {string} value
- * @returns {string} filesystem-safe file stem
- */
-function slug(value) {
-  const cleaned = String(value || 'untitled')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return cleaned || 'untitled';
 }
 
 customElements.define('dl-toolbar', DlToolbar);
