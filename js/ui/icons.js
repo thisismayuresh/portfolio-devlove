@@ -82,6 +82,9 @@ export const GLYPHS = Object.freeze({
   frame: '<path d="M5 1.8v12.4M11 1.8v12.4M1.8 5h12.4M1.8 11h12.4"/>',
   info: '<circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.6M8 5.2v.9"/>',
   warning: '<path d="M8 2.6 14.2 13H1.8Z"/><path d="M8 6.6v3M8 11.2v.7"/>',
+  error: '<circle cx="8" cy="8" r="6"/><path d="m5.9 5.9 4.2 4.2M10.1 5.9l-4.2 4.2"/>',
+  search: '<circle cx="7" cy="7" r="4.4"/><path d="m10.4 10.4 3.6 3.6"/>',
+  terminal: '<path d="M3.2 4.4 6.8 8l-3.6 3.6"/><path d="M8.6 12.4h4.2"/>',
 
   // --- device breakpoints ---------------------------------------------------
   phone: '<rect x="4.5" y="2" width="7" height="12"/><path d="M7 12.2h2"/>',
