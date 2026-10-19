@@ -80,6 +80,18 @@ export const BINDINGS = Object.freeze([
     group: 'View',
     run: () => app.emit('commands:open'),
   },
+  {
+    keys: 'ctrl+b',
+    description: 'Toggle the left sidebar',
+    group: 'View',
+    run: () => app.toggleSidebar('left'),
+  },
+  {
+    keys: 'ctrl+alt+b',
+    description: 'Toggle the right sidebar',
+    group: 'View',
+    run: () => app.toggleSidebar('right'),
+  },
   // Dock panels are reached by digit, the way the rail's tooltips have always
   // promised. They route through `dock:request` so the rail stays the only
   // thing that knows which panel is showing.
