@@ -84,6 +84,16 @@ async function start() {
       }
     });
 
+    // And with the sidebars. The markup seeds both as "open"; this only ever
+    // records a change the user asked for.
+    app.on('sidebar', (side) => {
+      if (!shell) {
+        return;
+      }
+      const open = side === 'left' ? app.state.leftSidebar : app.state.rightSidebar;
+      shell.setAttribute(`data-${side}-sidebar`, open ? 'open' : 'collapsed');
+    });
+
     installShortcuts();
     revealShell();
     app.setStatus('Engine ready', 'info');
