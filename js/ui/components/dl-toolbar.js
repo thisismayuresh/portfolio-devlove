@@ -79,6 +79,31 @@ export class DlToolbar extends PanelElement {
       <input class="doc" id="docName" aria-label="Document name" spellcheck="false" />
       <div class="spacer"></div>
 
+      <div class="sep"></div>
+
+      <div class="group">
+        <button
+          class="icon-btn"
+          data-action="toggle-left"
+          title="Hide the left sidebar (Ctrl+B)"
+          aria-pressed="true"
+          aria-label="Toggle the left sidebar"
+        >
+          ${icon('panelLeft', 15)}
+        </button>
+        <button
+          class="icon-btn"
+          data-action="toggle-right"
+          title="Hide the right sidebar (Ctrl+Alt+B)"
+          aria-pressed="true"
+          aria-label="Toggle the right sidebar"
+        >
+          ${icon('panelRight', 15)}
+        </button>
+      </div>
+
+      <div class="sep"></div>
+
       <div class="group">
         <button class="icon-btn" data-action="new" title="Clear the canvas" aria-label="New">
           ${icon('reset', 15)}
@@ -117,7 +142,9 @@ export class DlToolbar extends PanelElement {
 
     this.listen(['ready', 'document', 'page', 'node'], () => this._sync());
     this.listen('mode', (mode) => this._syncMode(mode));
+    this.listen('sidebar', () => this._syncSidebars());
     this._sync();
+    this._syncSidebars();
   }
 
   /** @param {MouseEvent} event */
@@ -135,6 +162,12 @@ export class DlToolbar extends PanelElement {
       return;
     }
     switch (actionButton.getAttribute('data-action')) {
+      case 'toggle-left':
+        app.toggleSidebar('left');
+        break;
+      case 'toggle-right':
+        app.toggleSidebar('right');
+        break;
       case 'new':
         this._confirmReset();
         break;
@@ -215,6 +248,22 @@ export class DlToolbar extends PanelElement {
   _syncMode(mode) {
     for (const button of this.$$('[data-mode]')) {
       button.setAttribute('aria-pressed', String(button.getAttribute('data-mode') === mode));
+    }
+  }
+
+  /** Pressed while the sidebar is showing; the title follows the action. */
+  _syncSidebars() {
+    const sides = [
+      ['toggle-left', 'left', app.state.leftSidebar, 'Ctrl+B'],
+      ['toggle-right', 'right', app.state.rightSidebar, 'Ctrl+Alt+B'],
+    ];
+    for (const [action, side, open, keys] of sides) {
+      const button = /** @type {HTMLElement | null} */ (this.$(`[data-action="${action}"]`));
+      if (!button) {
+        continue;
+      }
+      button.setAttribute('aria-pressed', String(open));
+      button.title = `${open ? 'Hide' : 'Show'} the ${side} sidebar (${keys})`;
     }
   }
 }
