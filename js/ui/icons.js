@@ -106,6 +106,8 @@ export const GLYPHS = Object.freeze({
   droplet: '<path d="M8 2.2S3.6 7 3.6 9.6a4.4 4.4 0 0 0 8.8 0C12.4 7 8 2.2 8 2.2Z"/>',
   sparkle: '<path d="M8 2.2 9.3 6l3.8 1.3L9.3 8.6 8 12.4 6.7 8.6 2.9 7.3 6.7 6Z"/>',
   help: '<circle cx="8" cy="8" r="6"/><path d="M6.4 6.3a1.7 1.7 0 1 1 2 1.9v.9"/><path d="M8 11.4v.5"/>',
+  panelLeft: '<rect x="1.5" y="2.5" width="13" height="11"/><path d="M6 2.5v11"/>',
+  panelRight: '<rect x="1.5" y="2.5" width="13" height="11"/><path d="M10 2.5v11"/>',
 
   // --- composite blocks -----------------------------------------------------
   // Each one is a miniature of the arrangement it drops in, so the tile shows
