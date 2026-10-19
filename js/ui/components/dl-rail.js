@@ -26,6 +26,10 @@ export const RAIL_ITEMS = Object.freeze([
   { panel: 'elements', icon: 'plus', label: 'Elements', shortcut: '1' },
   { panel: 'layers', icon: 'layers', label: 'Layers', shortcut: '2' },
   { panel: 'templates', icon: 'templates', label: 'Templates', shortcut: '3' },
+  { panel: 'problems', icon: 'warning', label: 'Problems', shortcut: '4' },
+  { panel: 'find', icon: 'search', label: 'Find', shortcut: '5' },
+  { panel: 'assets', icon: 'image', label: 'Assets', shortcut: '6' },
+  { panel: 'theme', icon: 'droplet', label: 'Theme', shortcut: '7' },
 ]);
 
 export class DlRail extends PanelElement {
@@ -70,6 +74,27 @@ export class DlRail extends PanelElement {
     /* Inset so the ring is not clipped by the rail's own edge. */
     .slot:focus-visible { outline: 1px solid var(--accent); outline-offset: -2px; }
 
+    /* A count badge, VS Code style: a small accent chip in the slot's corner.
+       It appears only while the panel has something to report, so a clean
+       document leaves the rail visually silent. */
+    .badge {
+      position: absolute;
+      right: 6px;
+      bottom: 6px;
+      min-width: 15px;
+      height: 15px;
+      padding: 0 4px;
+      display: grid;
+      place-items: center;
+      background: var(--accent);
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      line-height: 1;
+      pointer-events: none;
+    }
+    .badge[hidden] { display: none; }
+
     .spacer { flex: 1 1 auto; }
   `;
 
@@ -82,6 +107,7 @@ export class DlRail extends PanelElement {
                   title="${item.label}${item.shortcut ? ` (${item.shortcut})` : ''}"
                   aria-label="${item.label}">
             ${icon(item.icon, 20)}
+            ${item.panel === 'problems' ? '<span class="badge" id="problemsBadge" hidden></span>' : ''}
           </button>`
       ).join('')}
       <span class="spacer"></span>
@@ -107,6 +133,26 @@ export class DlRail extends PanelElement {
     });
 
     this.listen('dock:show', (panel) => this._sync(panel));
+
+    // Anything can ask for a panel by name — the shortcut digits, the command
+    // palette — without needing a handle on this element.
+    this.listen('dock:request', (panel) => {
+      if (RAIL_ITEMS.some((item) => item.panel === panel)) {
+        this.show(panel);
+      }
+    });
+
+    // The Problems panel publishes its count after each render; the badge is
+    // the rail's only piece of per-panel state.
+    this.listen('problems:count', (count) => {
+      const badge = /** @type {HTMLElement | null} */ (this.$('#problemsBadge'));
+      if (!badge) {
+        return;
+      }
+      badge.hidden = !count;
+      badge.textContent = count > 99 ? '99+' : String(count || '');
+    });
+
     this.show(this._active);
   }
 
