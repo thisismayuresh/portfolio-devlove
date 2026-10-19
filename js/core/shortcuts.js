@@ -68,6 +68,63 @@ export const BINDINGS = Object.freeze([
     run: () => app.ungroupSelection(),
   },
   { keys: 'ctrl+p', description: 'Toggle preview', group: 'View', run: () => app.toggleMode() },
+  {
+    keys: 'ctrl+f',
+    description: 'Find in the document',
+    group: 'View',
+    run: () => app.emit('find:open'),
+  },
+  {
+    keys: 'ctrl+k',
+    description: 'Show all commands',
+    group: 'View',
+    run: () => app.emit('commands:open'),
+  },
+  // Dock panels are reached by digit, the way the rail's tooltips have always
+  // promised. They route through `dock:request` so the rail stays the only
+  // thing that knows which panel is showing.
+  {
+    keys: '1',
+    description: 'Show the Elements panel',
+    group: 'View',
+    run: () => app.emit('dock:request', 'elements'),
+  },
+  {
+    keys: '2',
+    description: 'Show the Layers panel',
+    group: 'View',
+    run: () => app.emit('dock:request', 'layers'),
+  },
+  {
+    keys: '3',
+    description: 'Show the Templates panel',
+    group: 'View',
+    run: () => app.emit('dock:request', 'templates'),
+  },
+  {
+    keys: '4',
+    description: 'Show the Problems panel',
+    group: 'View',
+    run: () => app.emit('dock:request', 'problems'),
+  },
+  {
+    keys: '5',
+    description: 'Show the Find panel',
+    group: 'View',
+    run: () => app.emit('dock:request', 'find'),
+  },
+  {
+    keys: '6',
+    description: 'Show the Assets panel',
+    group: 'View',
+    run: () => app.emit('dock:request', 'assets'),
+  },
+  {
+    keys: '7',
+    description: 'Show the Theme panel',
+    group: 'View',
+    run: () => app.emit('dock:request', 'theme'),
+  },
   { keys: '?', description: 'Keyboard shortcuts', group: 'View', run: () => app.emit('help:open') },
   { keys: 'ctrl+0', description: 'Reset zoom', group: 'View', run: () => app.setZoom(1) },
   { keys: 'ctrl+=', description: 'Zoom in', group: 'View', run: () => app.zoomBy(1.2) },
@@ -164,9 +221,12 @@ function isTypingContext() {
  * Drops a new element near the top of the page, the same place the palette's
  * double-click path uses.
  *
+ * Exported because the command palette offers the same action without a key
+ * attached, and one implementation keeps the two drop points in agreement.
+ *
  * @param {string} kind
  */
-function dropElement(kind) {
+export function dropElementInView(kind) {
   const width = Number(app.getPage().width) || 1280;
   app.addElement(kind, 'root', Math.round(width / 2 - 160), 64);
 }
@@ -193,7 +253,7 @@ export function installShortcuts() {
     table.set(letter, {
       keys: letter,
       description: `Add ${kind}`,
-      run: () => dropElement(kind),
+      run: () => dropElementInView(kind),
     });
   }
 
@@ -212,4 +272,35 @@ export function installShortcuts() {
 
   window.addEventListener('keydown', onKeyDown);
   return () => window.removeEventListener('keydown', onKeyDown);
+}
+
+/**
+ * How a binding's `keys` string is spelled for a reader.
+ *
+ * Shared by the help overlay and the command palette: one table, so the
+ * keycaps the two surfaces show can never disagree.
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+const KEY_LABELS = Object.freeze({
+  ctrl: navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl',
+  shift: 'Shift',
+  alt: 'Alt',
+  escape: 'Esc',
+  arrowup: '↑',
+  arrowdown: '↓',
+  arrowleft: '←',
+  arrowright: '→',
+  delete: 'Del',
+  backspace: '⌫',
+});
+
+/**
+ * @param {string} keys
+ * @returns {string[]} the individual keycaps
+ */
+export function capsFor(keys) {
+  return String(keys || '')
+    .split('+')
+    .map((part) => KEY_LABELS[part] || part.toUpperCase());
 }
