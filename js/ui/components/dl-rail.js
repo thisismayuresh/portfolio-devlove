@@ -124,7 +124,15 @@ export class DlRail extends PanelElement {
       const target = /** @type {HTMLElement} */ (event.target);
       const slot = target.closest('[data-panel]');
       if (slot) {
-        this.show(slot.getAttribute('data-panel'));
+        const panel = slot.getAttribute('data-panel');
+        // Clicking the icon you are already on folds the dock away; clicking
+        // it again (or any other icon) brings it back. The rail itself never
+        // hides, so there is always an icon to press.
+        if (panel === this._active && app.state.leftSidebar) {
+          app.setSidebar('left', false);
+          return;
+        }
+        this.show(panel);
         return;
       }
       if (target.closest('[data-action="help"]')) {
@@ -157,11 +165,15 @@ export class DlRail extends PanelElement {
   }
 
   /**
-   * Reveals one dock panel and hides the others.
+   * Reveals one dock panel and hides the others. Revealing also unfolds the
+   * dock — the digits and Ctrl+F ask for a panel from anywhere, collapsed
+   * left sidebar included.
+   *
    * @param {string} panel
    */
   show(panel) {
     this._active = panel;
+    app.setSidebar('left', true);
     const dock = document.getElementById('left-dock');
     if (dock) {
       for (const child of dock.children) {
