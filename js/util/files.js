@@ -137,3 +137,21 @@ export function formatSize(bytes) {
   }
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
+
+/**
+ * Turns any title into a filesystem-safe file stem.
+ *
+ * Exported so the toolbar and the command palette name downloads the same
+ * way — two spellings of "save" that disagree on the filename would be a
+ * small, very confusing bug.
+ *
+ * @param {string} value
+ * @returns {string} filesystem-safe file stem
+ */
+export function slug(value) {
+  const cleaned = String(value || 'untitled')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return cleaned || 'untitled';
+}
