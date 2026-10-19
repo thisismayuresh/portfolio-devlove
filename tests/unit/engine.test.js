@@ -250,6 +250,12 @@ describe('geometry', () => {
     assert.ok(guides.v.includes(200));
     assert.ok(guides.v.includes(0));
     assert.ok(guides.h.includes(400));
+    // The parent contributes its centre and trailing edge on both axes, not
+    // just the leading ones — a container is symmetrical.
+    assert.ok(guides.v.includes(180));
+    assert.ok(guides.v.includes(360));
+    assert.ok(guides.h.includes(120));
+    assert.ok(guides.h.includes(240));
   });
 
   it('rejects malformed rect payloads instead of storing them', () => {
