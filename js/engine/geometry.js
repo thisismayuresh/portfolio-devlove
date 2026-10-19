@@ -139,7 +139,9 @@ export function toLocalPoint(doc, rects, parentId, x, y) {
 
 /**
  * Snap candidates for a dragged node: the edges and centres of its visible
- * siblings, plus the parent's own left edge, centre and right edge.
+ * siblings, plus the parent's own leading edge, centre and trailing edge on
+ * both axes — a horizontal guide that could only reach the parent's top edge
+ * would leave the vertical ones able to do work the horizontal ones cannot.
  *
  * Returned in parent-local space, the same space the drag gesture works in.
  *
@@ -172,6 +174,6 @@ export function snapGuides(doc, id) {
   }
 
   v.push(0, parent.width * 0.5, parent.width);
-  h.push(0);
+  h.push(0, parent.height * 0.5, parent.height);
   return { v, h };
 }

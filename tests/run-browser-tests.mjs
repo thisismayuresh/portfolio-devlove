@@ -40,6 +40,8 @@ const ROOT = resolve(HERE, '..');
 const SUITES = [
   { name: 'engine + preview frame', path: '/tests/smoke.html' },
   { name: 'editor interactions', path: '/', drive: driveEditor },
+  { name: 'aux panels + palette', path: '/', drive: driveAux },
+  { name: 'sidebars', path: '/', drive: driveSidebars },
 ];
 
 const HEADFUL = process.argv.includes('--headful');
@@ -484,6 +486,609 @@ async function driveEditor(session) {
     'choosing Duplicate from the menu copies the element',
     clicked && menuCountAfter > menuCountBefore,
     `${menuCountBefore} → ${menuCountAfter} nodes`
+  );
+
+  return lines;
+}
+
+// ------------------------------------------------------------ aux suite
+
+/**
+ * Drives the auxiliary dock panels and the command palette over CDP.
+ *
+ * Every assertion here targets behaviour the unit tests cannot reach: shadow
+ * DOM wiring, rail switching, real keystrokes (Ctrl+F, Ctrl+K, the digit
+ * shortcuts), the round trip from a panel row to the engine, the drag guides
+ * painting during a live gesture, and `reveal:request` moving the viewport.
+ *
+ * The suite creates its own problem (a blank heading) rather than leaning on
+ * the document's existing ones, so it passes whether or not the template's
+ * deliberate blanks have been filled in yet.
+ *
+ * @param {DevToolsSession} session
+ * @returns {Promise<string[]>} result lines, `FAIL` prefixed on failure
+ */
+async function driveAux(session) {
+  const lines = [];
+  const check = (name, ok, detail = '') =>
+    lines.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
+
+  await until(
+    () => session.evaluate('Boolean(window.__devlove && window.__devlove.state.ready)'),
+    'the editor to boot'
+  );
+  check('editor boots', true);
+
+  const rectCount = await until(async () => {
+    const n = await session.evaluate('Object.keys(window.__devlove.state.rects).length');
+    return n > 1 ? n : null;
+  }, 'the preview frame to report geometry').catch(() => 0);
+  check('preview frame reports geometry', rectCount > 1, `${rectCount} boxes`);
+  if (!rectCount) {
+    return lines;
+  }
+
+  /** Presses and releases one key the way a human would type it. */
+  const tapKey = async ({ key, code, windowsVirtualKeyCode, modifiers = 0 }) => {
+    await session.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key,
+      code,
+      windowsVirtualKeyCode,
+      modifiers,
+    });
+    await session.send('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key,
+      code,
+      windowsVirtualKeyCode,
+      modifiers: 0,
+    });
+  };
+
+  /** @param {string} panel @returns {Promise<boolean>} */
+  const panelHidden = (panel) =>
+    session.evaluate(`document.querySelector('#left-dock [data-panel="${panel}"]').hidden`);
+
+  /** @param {string} panel clicks the rail slot and reports visibility */
+  const showPanel = async (panel) => {
+    await session.evaluate(`(() => {
+      const rail = document.querySelector('dl-rail');
+      const slot = rail.shadowRoot.querySelector('[data-panel="${panel}"]');
+      if (slot) slot.click();
+    })()`);
+    return (await panelHidden(panel)) === false;
+  };
+
+  // --- the rail ---------------------------------------------------------
+  const slots = await session.evaluate(`(() => {
+    const rail = document.querySelector('dl-rail');
+    return rail
+      ? [...rail.shadowRoot.querySelectorAll('[data-panel]')].map((slot) => slot.getAttribute('data-panel'))
+      : [];
+  })()`);
+  check(
+    'the rail offers seven dock panels',
+    slots.length === 7 && slots.includes('problems') && slots.includes('theme'),
+    slots.join(', ')
+  );
+
+  // --- problems ---------------------------------------------------------
+  const problemsShown = await showPanel('problems');
+  const paletteHidden = await panelHidden('elements');
+  check('the rail reveals Problems and hides the palette', problemsShown && paletteHidden);
+
+  // Create a problem of our own so the assertion holds no matter what the
+  // document's own state happens to be.
+  const headingId = await session.evaluate(`(() => {
+    const app = window.__devlove;
+    const id = app.addElement('heading', 'root', 64, 40);
+    if (!id) return null;
+    app.setProperty(id, 'content', '');
+    return id;
+  })()`);
+  check('a blank heading can be created', Boolean(headingId), String(headingId));
+
+  const rowCount = await until(async () => {
+    const n = await session.evaluate(`(() => {
+      const panel = document.querySelector('dl-problems');
+      return panel.shadowRoot.querySelectorAll('#body [data-id]').length;
+    })()`);
+    return n > 0 ? n : null;
+  }, 'the problems list to render').catch(() => 0);
+  check('Problems lists the document issues', rowCount > 0, `${rowCount} rows`);
+
+  const ourRow = await session.evaluate(
+    `document.querySelector('dl-problems').shadowRoot.querySelector('[data-id="${headingId}"]') !== null`
+  );
+  check('the blank heading appears in the list', ourRow);
+
+  const badge = await session.evaluate(`(() => {
+    const badge = document.querySelector('dl-rail').shadowRoot.querySelector('#problemsBadge');
+    const count = document.querySelector('dl-problems').shadowRoot.querySelector('#count').textContent;
+    return badge ? { hidden: badge.hidden, text: badge.textContent, count } : null;
+  })()`);
+  check(
+    'the rail badge matches the problem count',
+    Boolean(badge) && !badge.hidden && badge.text === badge.count && Number(badge.count) >= 1,
+    JSON.stringify(badge)
+  );
+
+  await session.evaluate(`(() => {
+    const row = document.querySelector('dl-problems').shadowRoot.querySelector('[data-id="${headingId}"]');
+    if (row) row.click();
+  })()`);
+  await sleep(120);
+  const problemSelection = await session.evaluate('window.__devlove.state.selection');
+  check(
+    'clicking a problem selects its element',
+    problemSelection === headingId,
+    `${problemSelection}`
+  );
+
+  // --- find (Ctrl+F) ----------------------------------------------------
+  await tapKey({ key: 'f', code: 'KeyF', windowsVirtualKeyCode: 70, modifiers: 2 });
+  const findShown = await until(
+    async () => (await panelHidden('find')) === false,
+    'the Find panel to open'
+  ).catch(() => false);
+  check('Ctrl+F opens the Find panel', findShown);
+
+  const findFocused = await session.evaluate(`(() => {
+    const root = document.querySelector('dl-find').shadowRoot;
+    const input = root.querySelector('#query');
+    return root.activeElement === input;
+  })()`);
+  check('the Find field takes focus', findFocused);
+
+  await session.evaluate(`(() => {
+    const input = document.querySelector('dl-find').shadowRoot.querySelector('#query');
+    input.value = 'table';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`);
+  const findRows = await session.evaluate(
+    `document.querySelector('dl-find').shadowRoot.querySelectorAll('#body [data-id]').length`
+  );
+  check('Find matches elements by type and text', findRows >= 1, `${findRows} rows`);
+
+  const firstFindId = await session.evaluate(`(() => {
+    const row = document.querySelector('dl-find').shadowRoot.querySelector('#body [data-id]');
+    if (!row) return null;
+    const id = row.getAttribute('data-id');
+    row.click();
+    return id;
+  })()`);
+  await sleep(120);
+  const findSelection = await session.evaluate('window.__devlove.state.selection');
+  check(
+    'clicking a Find result selects it',
+    Boolean(firstFindId) && findSelection === firstFindId,
+    `${firstFindId} → ${findSelection}`
+  );
+
+  // --- assets -----------------------------------------------------------
+  const assetsShown = await showPanel('assets');
+  check('the rail reveals the Assets panel', assetsShown);
+
+  const assetCards = await until(async () => {
+    const n = await session.evaluate(
+      `document.querySelector('dl-assets').shadowRoot.querySelectorAll('#body [data-id]').length`
+    );
+    return n > 0 ? n : null;
+  }, 'the assets list to render').catch(() => 0);
+  check('Assets lists the images in the document', assetCards > 0, `${assetCards} cards`);
+
+  const assetSelection = await session.evaluate(`(() => {
+    const card = document.querySelector('dl-assets').shadowRoot.querySelector('#body [data-id]');
+    if (!card) return null;
+    const id = card.getAttribute('data-id');
+    card.click();
+    return id;
+  })()`);
+  await sleep(120);
+  const selectedAsset = await session.evaluate('window.__devlove.state.selection');
+  check(
+    'clicking an asset selects it',
+    Boolean(assetSelection) && selectedAsset === assetSelection,
+    `${assetSelection} → ${selectedAsset}`
+  );
+
+  // --- theme ------------------------------------------------------------
+  const themeShown = await showPanel('theme');
+  check('the rail reveals the Theme panel', themeShown);
+
+  const themeColors = await session.evaluate(`(() => {
+    const root = document.querySelector('dl-theme').shadowRoot;
+    const rows = [...root.querySelectorAll('#body [data-value]')];
+    return { count: rows.length, value: rows[0] ? rows[0].getAttribute('data-value') : null };
+  })()`);
+  check(
+    'Theme collects the document colours',
+    themeColors.count >= 3,
+    `${themeColors.count} colours`
+  );
+
+  // The asset click above left an image selected, so Apply is enabled.
+  const applied = await session.evaluate(`(() => {
+    const root = document.querySelector('dl-theme').shadowRoot;
+    const row = root.querySelector('#body [data-value]');
+    const button = row.querySelector('[data-do="text"]');
+    if (button.disabled) return { error: 'apply disabled' };
+    const value = row.getAttribute('data-value');
+    button.click();
+    const app = window.__devlove;
+    const id = Array.isArray(app.state.selected) ? app.state.selected[0] : app.state.selection;
+    return { value, now: app.engine.getElement(id).style.color, id };
+  })()`);
+  check(
+    'applying a theme colour reaches the engine',
+    !applied.error && applied.now === applied.value,
+    JSON.stringify(applied)
+  );
+
+  // --- digit shortcuts ---------------------------------------------------
+  await session.evaluate(`(() => {
+    for (const host of document.querySelectorAll('*')) {
+      const active = host.shadowRoot && host.shadowRoot.activeElement;
+      if (active && active.blur) active.blur();
+    }
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  })()`);
+  await tapKey({ key: '4', code: 'Digit4', windowsVirtualKeyCode: 52 });
+  await sleep(150);
+  const problemsByDigit = (await panelHidden('problems')) === false;
+  await tapKey({ key: '6', code: 'Digit6', windowsVirtualKeyCode: 54 });
+  await sleep(150);
+  const assetsByDigit = (await panelHidden('assets')) === false && (await panelHidden('problems'));
+  check('digit shortcuts switch dock panels', problemsByDigit && assetsByDigit);
+
+  // --- command palette (Ctrl+K) ------------------------------------------
+  await tapKey({ key: 'k', code: 'KeyK', windowsVirtualKeyCode: 75, modifiers: 2 });
+  const paletteOpen = await until(
+    async () =>
+      session.evaluate(
+        `document.querySelector('dl-commands').getAttribute('data-open') === 'true'`
+      ),
+    'the command palette to open'
+  ).catch(() => false);
+  check('Ctrl+K opens the command palette', paletteOpen);
+
+  await session.evaluate(`(() => {
+    const input = document.querySelector('dl-commands').shadowRoot.querySelector('#cmd');
+    input.value = 'undo';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  })()`);
+  const topLabel = await session.evaluate(`(() => {
+    const row = document.querySelector('dl-commands').shadowRoot.querySelector('#list [data-index="0"]');
+    return row ? row.querySelector('.row__label').textContent : '';
+  })()`);
+  check('the palette ranks the best match first', topLabel === 'Undo', topLabel);
+
+  await tapKey({ key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+  await sleep(150);
+  const paletteClosed = await session.evaluate(
+    `document.querySelector('dl-commands').getAttribute('data-open') === 'false'`
+  );
+  check('Enter runs the active command and closes the palette', paletteClosed);
+
+  // --- reveal:request ----------------------------------------------------
+  await session.evaluate(`(() => {
+    const viewport = document.querySelector('dl-canvas').shadowRoot.querySelector('#viewport');
+    viewport.scrollTop = 0;
+  })()`);
+  await sleep(150);
+  const deep = await session.evaluate(`(() => {
+    const app = window.__devlove;
+    const entries = Object.entries(app.state.rects)
+      .filter(([id, rect]) => id !== 'root' && rect[1] + rect[3] > 1550)
+      .sort((a, b) => b[1][1] - a[1][1]);
+    if (!entries.length) return null;
+    return { id: entries[0][0], before: 0 };
+  })()`);
+  if (!deep) {
+    check('there is an element below the fold to reveal', false);
+  } else {
+    await session.evaluate(`window.__devlove.emit('reveal:request', ${JSON.stringify(deep.id)})`);
+    const scrolled = await until(
+      async () => {
+        const top = await session.evaluate(
+          `document.querySelector('dl-canvas').shadowRoot.querySelector('#viewport').scrollTop`
+        );
+        return top > 10 ? top : null;
+      },
+      'the canvas to scroll to the revealed element',
+      5000
+    ).catch(() => 0);
+    check(
+      'reveal:request scrolls the element into view',
+      scrolled > deep.before,
+      `scrollTop → ${scrolled}`
+    );
+  }
+
+  // --- drag guides -------------------------------------------------------
+  const mouse = (type, x, y, extra = {}) =>
+    session.send('Input.dispatchMouseEvent', {
+      type,
+      x,
+      y,
+      button: 'left',
+      buttons: type === 'mouseReleased' ? 0 : 1,
+      clickCount: 1,
+      pointerType: 'mouse',
+      ...extra,
+    });
+
+  const candidates = await session.evaluate(`(() => {
+    const app = window.__devlove;
+    const overlay = document.querySelector('dl-canvas').shadowRoot.querySelector('#overlay');
+    const box = overlay.getBoundingClientRect();
+    const out = [];
+    for (const [id, rect] of Object.entries(app.state.rects)) {
+      if (id === 'root' || rect[2] < 40 || rect[3] < 24) continue;
+      const node = app.engine.getElement(id);
+      if (!node || node.hidden) continue;
+      out.push({
+        rect,
+        cx: Math.round(box.left + (rect[0] + rect[2] / 2) * app.state.zoom),
+        cy: Math.round(box.top + (rect[1] + rect[3] / 2) * app.state.zoom),
+      });
+    }
+    out.sort((a, b) => a.rect[1] - b.rect[1]);
+    return out.slice(0, 10);
+  })()`);
+
+  /** @type {any} */
+  let guideInfo = null;
+  for (const candidate of candidates) {
+    await mouse('mouseMoved', candidate.cx, candidate.cy, { buttons: 0 });
+    await mouse('mousePressed', candidate.cx, candidate.cy);
+    // The press lands on the topmost node at that point, which may be the
+    // candidate or one of its children. Only an absolutely positioned parent
+    // paints guides; flow containers use the reorder line instead, so those
+    // presses are released and the next candidate tried.
+    const attempt = await session.evaluate(`(() => {
+      const app = window.__devlove;
+      const canvas = document.querySelector('dl-canvas');
+      const gesture = canvas._gesture;
+      if (!gesture || !gesture.id) return { error: 'no gesture' };
+      const doc = app.engine.snapshot();
+      const node = doc.nodes[gesture.id];
+      if (!node) return { error: 'no node' };
+      const parent = doc.nodes[node.parent || 'root'];
+      if (!parent || parent.layout !== 'absolute') return { flow: true };
+      const guides = app.engine.snapGuides(gesture.id).v.filter(
+        (c) => c >= 0 && c <= parent.width - 1
+      );
+      if (guides.length === 0) return { error: 'no guides' };
+      let best = guides[0];
+      for (const c of guides) {
+        if (Math.abs(c - node.x) < Math.abs(best - node.x)) best = c;
+      }
+      let dx = best - node.x;
+      if (Math.abs(dx) < 4) dx = dx >= 0 ? 4 : -4;
+      return { id: gesture.id, best, dx, zoom: app.state.zoom };
+    })()`);
+
+    if (attempt.error || attempt.flow) {
+      await mouse('mouseReleased', candidate.cx, candidate.cy);
+      await sleep(60);
+      continue;
+    }
+    guideInfo = { ...attempt, pressX: candidate.cx, pressY: candidate.cy };
+    break;
+  }
+
+  if (!guideInfo) {
+    check('found an absolutely positioned element to drag', false);
+    return lines;
+  }
+
+  const screenDx = Math.round(guideInfo.dx * guideInfo.zoom);
+  for (let step = 1; step <= 4; step += 1) {
+    await mouse(
+      'mouseMoved',
+      Math.round(guideInfo.pressX + (screenDx * step) / 4),
+      guideInfo.pressY
+    );
+    await sleep(30);
+  }
+  await sleep(80);
+  const guideOn = await session.evaluate(
+    `document.querySelector('dl-canvas').shadowRoot.querySelector('#guideV').getAttribute('data-on')`
+  );
+  check('dragging near an edge shows the snap guide', guideOn === 'true', `data-on=${guideOn}`);
+
+  await mouse('mouseReleased', Math.round(guideInfo.pressX + screenDx), guideInfo.pressY);
+  await sleep(300);
+  const settled = await session.evaluate(`(() => {
+    const app = window.__devlove;
+    const node = app.engine.getElement(${JSON.stringify(guideInfo.id)});
+    const guide = document.querySelector('dl-canvas').shadowRoot.querySelector('#guideV');
+    return { x: node.x, best: ${JSON.stringify(guideInfo.best)}, on: guide.getAttribute('data-on') };
+  })()`);
+  check(
+    'the element settles on the guide and the guide hides',
+    Math.abs(settled.x - settled.best) <= 6 && settled.on !== 'true',
+    JSON.stringify(settled)
+  );
+
+  return lines;
+}
+
+// ---- sidebars ---------------------------------------------------------------
+
+async function driveSidebars(session) {
+  const lines = [];
+  const check = (name, ok, detail = '') =>
+    lines.push(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  — ' + detail : ''}`);
+
+  await until(
+    () => session.evaluate('Boolean(window.__devlove && window.__devlove.state.ready)'),
+    'the editor to boot'
+  );
+  check('editor boots', true);
+
+  /** Presses and releases one key the way a human would type it. */
+  const tapKey = async ({ key, code, windowsVirtualKeyCode, modifiers = 0 }) => {
+    await session.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key,
+      code,
+      windowsVirtualKeyCode,
+      modifiers,
+    });
+    await session.send('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key,
+      code,
+      windowsVirtualKeyCode,
+      modifiers: 0,
+    });
+  };
+
+  const measure = () =>
+    session.evaluate(`(() => {
+      const shell = document.getElementById('shell');
+      const dock = document.getElementById('left-dock');
+      const inspector = document.querySelector('dl-inspector');
+      const stage = document.querySelector('.shell__stage');
+      const rail = document.querySelector('dl-rail');
+      return {
+        left: shell.getAttribute('data-left-sidebar'),
+        right: shell.getAttribute('data-right-sidebar'),
+        dockW: Math.round(dock.getBoundingClientRect().width),
+        inspW: Math.round(inspector.getBoundingClientRect().width),
+        stageW: Math.round(stage.getBoundingClientRect().width),
+        railW: Math.round(rail.getBoundingClientRect().width),
+      };
+    })()`);
+
+  const toggle = (side) =>
+    session.evaluate(`(() => {
+      const bar = document.querySelector('dl-toolbar');
+      const button = bar.shadowRoot.querySelector('[data-action="toggle-${side}"]');
+      if (!button) return false;
+      button.click();
+      return true;
+    })()`);
+
+  const railClickActive = () =>
+    session.evaluate(`(() => {
+      const rail = document.querySelector('dl-rail');
+      const slot = rail.shadowRoot.querySelector('[data-panel="elements"]');
+      if (!slot) return false;
+      slot.click();
+      return true;
+    })()`);
+
+  // --- default state -------------------------------------------------------
+  const open = await measure();
+  check(
+    'the left sidebar starts open',
+    open.left === 'open' && open.dockW > 0 && open.railW > 0,
+    JSON.stringify(open)
+  );
+  check(
+    'the right sidebar starts open',
+    open.right === 'open' && open.inspW > 0,
+    JSON.stringify(open)
+  );
+
+  // --- toolbar toggles -----------------------------------------------------
+  const clicked = await toggle('left');
+  const t1 = await measure();
+  check(
+    'the toolbar hides the left sidebar',
+    clicked && t1.left === 'collapsed' && t1.dockW === 0 && t1.stageW > open.stageW,
+    JSON.stringify(t1)
+  );
+  check('the rail stays visible when the dock folds', t1.railW > 0, `rail=${t1.railW}`);
+
+  await toggle('left');
+  const t2 = await measure();
+  check(
+    'the toolbar shows the left sidebar again',
+    t2.left === 'open' && t2.dockW > 0 && Math.abs(t2.stageW - open.stageW) <= 1,
+    JSON.stringify(t2)
+  );
+
+  await toggle('right');
+  const t3 = await measure();
+  check(
+    'the toolbar hides the right sidebar',
+    t3.right === 'collapsed' && t3.inspW === 0 && t3.stageW > open.stageW,
+    JSON.stringify(t3)
+  );
+  await toggle('right');
+  const t4 = await measure();
+  check(
+    'the toolbar shows the right sidebar again',
+    t4.right === 'open' && t4.inspW > 0,
+    JSON.stringify(t4)
+  );
+
+  // --- keyboard ------------------------------------------------------------
+  await tapKey({ key: 'b', code: 'KeyB', windowsVirtualKeyCode: 66, modifiers: 2 });
+  const k1 = await measure();
+  check(
+    'Ctrl+B hides the left sidebar',
+    k1.left === 'collapsed' && k1.dockW === 0,
+    JSON.stringify(k1)
+  );
+  await tapKey({ key: 'b', code: 'KeyB', windowsVirtualKeyCode: 66, modifiers: 2 });
+  const k2 = await measure();
+  check('Ctrl+B shows it again', k2.left === 'open' && k2.dockW > 0, JSON.stringify(k2));
+
+  await tapKey({ key: 'b', code: 'KeyB', windowsVirtualKeyCode: 66, modifiers: 3 });
+  const k3 = await measure();
+  check(
+    'Ctrl+Alt+B hides the right sidebar',
+    k3.right === 'collapsed' && k3.inspW === 0,
+    JSON.stringify(k3)
+  );
+  await tapKey({ key: 'b', code: 'KeyB', windowsVirtualKeyCode: 66, modifiers: 3 });
+  const k4 = await measure();
+  check('Ctrl+Alt+B shows it again', k4.right === 'open' && k4.inspW > 0, JSON.stringify(k4));
+
+  // --- rail active-tab fold ----------------------------------------------
+  const pressed = await railClickActive();
+  const r1 = await measure();
+  check(
+    'clicking the active rail icon folds the dock',
+    pressed && r1.left === 'collapsed' && r1.dockW === 0,
+    JSON.stringify(r1)
+  );
+  await railClickActive();
+  const r2 = await measure();
+  check(
+    'clicking it again unfolds the dock',
+    r2.left === 'open' && r2.dockW > 0,
+    JSON.stringify(r2)
+  );
+
+  // --- a panel request unfolds a folded dock ------------------------------
+  await tapKey({ key: 'b', code: 'KeyB', windowsVirtualKeyCode: 66, modifiers: 2 });
+  await tapKey({ key: '1', code: 'Digit1', windowsVirtualKeyCode: 49 });
+  const d1 = await measure();
+  check(
+    'pressing 1 unfolds the dock for its panel',
+    d1.left === 'open' && d1.dockW > 0,
+    JSON.stringify(d1)
+  );
+
+  // --- preview outranks the sidebars, design restores them ----------------
+  await session.evaluate('window.__devlove.setMode("preview")');
+  await sleep(150);
+  const p1 = await measure();
+  check('preview hides both sidebars', p1.dockW === 0 && p1.inspW === 0, JSON.stringify(p1));
+  await session.evaluate('window.__devlove.setMode("design")');
+  await sleep(150);
+  const p2 = await measure();
+  check(
+    'design restores both sidebars',
+    p2.left === 'open' && p2.right === 'open' && p2.dockW > 0 && p2.inspW > 0,
+    JSON.stringify(p2)
   );
 
   return lines;

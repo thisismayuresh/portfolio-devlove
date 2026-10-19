@@ -82,6 +82,9 @@ export const GLYPHS = Object.freeze({
   frame: '<path d="M5 1.8v12.4M11 1.8v12.4M1.8 5h12.4M1.8 11h12.4"/>',
   info: '<circle cx="8" cy="8" r="6"/><path d="M8 7.4v3.6M8 5.2v.9"/>',
   warning: '<path d="M8 2.6 14.2 13H1.8Z"/><path d="M8 6.6v3M8 11.2v.7"/>',
+  error: '<circle cx="8" cy="8" r="6"/><path d="m5.9 5.9 4.2 4.2M10.1 5.9l-4.2 4.2"/>',
+  search: '<circle cx="7" cy="7" r="4.4"/><path d="m10.4 10.4 3.6 3.6"/>',
+  terminal: '<path d="M3.2 4.4 6.8 8l-3.6 3.6"/><path d="M8.6 12.4h4.2"/>',
 
   // --- device breakpoints ---------------------------------------------------
   phone: '<rect x="4.5" y="2" width="7" height="12"/><path d="M7 12.2h2"/>',
@@ -103,6 +106,8 @@ export const GLYPHS = Object.freeze({
   droplet: '<path d="M8 2.2S3.6 7 3.6 9.6a4.4 4.4 0 0 0 8.8 0C12.4 7 8 2.2 8 2.2Z"/>',
   sparkle: '<path d="M8 2.2 9.3 6l3.8 1.3L9.3 8.6 8 12.4 6.7 8.6 2.9 7.3 6.7 6Z"/>',
   help: '<circle cx="8" cy="8" r="6"/><path d="M6.4 6.3a1.7 1.7 0 1 1 2 1.9v.9"/><path d="M8 11.4v.5"/>',
+  panelLeft: '<rect x="1.5" y="2.5" width="13" height="11"/><path d="M6 2.5v11"/>',
+  panelRight: '<rect x="1.5" y="2.5" width="13" height="11"/><path d="M10 2.5v11"/>',
 
   // --- composite blocks -----------------------------------------------------
   // Each one is a miniature of the arrangement it drops in, so the tile shows

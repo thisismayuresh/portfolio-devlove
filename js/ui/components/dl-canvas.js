@@ -491,6 +491,10 @@ export class DlCanvas extends PanelElement {
       this._closeTextEditor(false);
     });
 
+    // Panels ask for an element to be brought into view after selecting it —
+    // the canvas is the only thing that knows where the viewport is.
+    this.listen('reveal:request', (id) => this._reveal(id));
+
     this._readPage();
     this._layout();
     this._syncToolbar();
@@ -661,6 +665,38 @@ export class DlCanvas extends PanelElement {
       return;
     }
     app.setZoom(Math.min(1, available / this._pageWidth));
+  }
+
+  /**
+   * Scrolls the viewport until an element sits in the middle of it.
+   *
+   * The reverse of {@link _toPagePoint}: a page-space rect becomes the client
+   * position it currently has on screen, and the viewport scrolls by the
+   * distance between that and its own centre. Elements without a measured rect
+   * (still compiling, or hidden from the frame) are left alone — selecting
+   * them already did the visible work it can.
+   *
+   * @param {string} id
+   */
+  _reveal(id) {
+    if (app.state.mode !== 'design') {
+      return;
+    }
+    const rect = app.rectOf(id);
+    if (!rect) {
+      return;
+    }
+    const zoom = app.state.zoom || 1;
+    const scalerBox = this.scaler.getBoundingClientRect();
+    const viewBox = this.viewport.getBoundingClientRect();
+    const centreX = scalerBox.left + (rect[0] + rect[2] / 2) * zoom;
+    const centreY = scalerBox.top + (rect[1] + rect[3] / 2) * zoom;
+
+    this.viewport.scrollTo({
+      left: this.viewport.scrollLeft + (centreX - (viewBox.left + this.viewport.clientWidth / 2)),
+      top: this.viewport.scrollTop + (centreY - (viewBox.top + this.viewport.clientHeight / 2)),
+      behavior: 'smooth',
+    });
   }
 
   _syncZoomLabel() {

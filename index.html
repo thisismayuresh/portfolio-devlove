@@ -18,7 +18,14 @@
       Each slot is a grid container (see css/shell.css) so the panel hosts are
       stretched grid items with a real height.
     -->
-    <div class="shell" id="shell" data-mode="design" hidden>
+    <div
+      class="shell"
+      id="shell"
+      data-mode="design"
+      data-left-sidebar="open"
+      data-right-sidebar="open"
+      hidden
+    >
       <dl-toolbar class="shell__topbar"></dl-toolbar>
 
       <dl-rail class="shell__rail"></dl-rail>
@@ -27,6 +34,10 @@
         <dl-palette data-panel="elements"></dl-palette>
         <dl-layers data-panel="layers" hidden></dl-layers>
         <dl-templates data-panel="templates" hidden></dl-templates>
+        <dl-problems data-panel="problems" hidden></dl-problems>
+        <dl-find data-panel="find" hidden></dl-find>
+        <dl-assets data-panel="assets" hidden></dl-assets>
+        <dl-theme data-panel="theme" hidden></dl-theme>
       </div>
 
       <div class="shell__stage">
@@ -48,6 +59,9 @@
 
     <!-- Canvas context menu. Fixed, outside the grid, items come from the canvas. -->
     <dl-context-menu data-open="false"></dl-context-menu>
+
+    <!-- Command palette (Ctrl+K). Fixed above every other overlay. -->
+    <dl-commands data-open="false"></dl-commands>
 
     <!-- Boot gate: shown until the engine reports ready, or the failure. -->
     <div class="boot" id="boot">

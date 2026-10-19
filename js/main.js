@@ -18,12 +18,17 @@ import './ui/components/dl-rail.js';
 import './ui/components/dl-palette.js';
 import './ui/components/dl-layers.js';
 import './ui/components/dl-templates.js';
+import './ui/components/dl-problems.js';
+import './ui/components/dl-find.js';
+import './ui/components/dl-assets.js';
+import './ui/components/dl-theme.js';
 import './ui/components/dl-canvas.js';
 import './ui/components/dl-inspector.js';
 import './ui/components/dl-status.js';
 import './ui/components/dl-help.js';
 import './ui/components/dl-welcome.js';
 import './ui/components/dl-context-menu.js';
+import './ui/components/dl-commands.js';
 
 const boot = document.getElementById('boot');
 const bootNote = document.getElementById('boot-note');
@@ -77,6 +82,16 @@ async function start() {
       if (shell) {
         shell.setAttribute('data-mode', mode);
       }
+    });
+
+    // And with the sidebars. The markup seeds both as "open"; this only ever
+    // records a change the user asked for.
+    app.on('sidebar', (side) => {
+      if (!shell) {
+        return;
+      }
+      const open = side === 'left' ? app.state.leftSidebar : app.state.rightSidebar;
+      shell.setAttribute(`data-${side}-sidebar`, open ? 'open' : 'collapsed');
     });
 
     installShortcuts();

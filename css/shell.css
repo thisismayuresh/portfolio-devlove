@@ -68,13 +68,21 @@ body {
 
 /* --------------------------------------------------------------- shell grid */
 
+/*
+ * Column widths are custom properties so collapsing a sidebar is a width
+ * swap rather than a second grid template to keep in step with preview mode.
+ * Both sidebars start open; `data-left-sidebar` / `data-right-sidebar` only
+ * ever narrow them, and the preview rule below still wins outright.
+ */
 .shell {
+  --left-col: var(--panel-left-w);
+  --right-col: var(--panel-right-w);
   display: grid;
   grid-template-columns:
     var(--rail-w)
-    var(--panel-left-w)
+    var(--left-col)
     minmax(0, 1fr)
-    var(--panel-right-w);
+    var(--right-col);
   grid-template-rows: var(--bar-top-h) minmax(0, 1fr) var(--bar-bottom-h);
   grid-template-areas:
     'topbar topbar topbar topbar'
@@ -86,6 +94,21 @@ body {
 
 /* `display: grid` above outranks the UA rule for [hidden], so restate it. */
 .shell[hidden] {
+  display: none;
+}
+
+/* Collapsed sidebars. The rail column is deliberately untouched: the panel
+   switcher stays visible so the left dock can always be brought back. */
+.shell[data-left-sidebar='collapsed'] {
+  --left-col: 0px;
+}
+
+.shell[data-right-sidebar='collapsed'] {
+  --right-col: 0px;
+}
+
+.shell[data-left-sidebar='collapsed'] .shell__left,
+.shell[data-right-sidebar='collapsed'] .shell__right {
   display: none;
 }
 
