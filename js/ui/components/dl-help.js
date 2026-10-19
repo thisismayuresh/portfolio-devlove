@@ -14,34 +14,12 @@
 import { PanelElement, esc } from '../panel-element.js';
 import { icon } from '../icons.js';
 import { app } from '../../core/app.js';
-import { BINDINGS } from '../../core/shortcuts.js';
+import { BINDINGS, capsFor } from '../../core/shortcuts.js';
 import { BLUEPRINT_GROUPS } from '../../registry/elements.js';
 
 /** Section order. Anything with no `group` falls into the last one. */
 const GROUPS = ['Edit', 'Select', 'Arrange', 'View'];
 const OTHER = 'Other';
-
-/** How a binding's `keys` string is spelled for a reader. */
-const KEY_LABELS = Object.freeze({
-  ctrl: navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl',
-  shift: 'Shift',
-  alt: 'Alt',
-  escape: 'Esc',
-  arrowup: '↑',
-  arrowdown: '↓',
-  arrowleft: '←',
-  arrowright: '→',
-  delete: 'Del',
-  backspace: '⌫',
-});
-
-/**
- * @param {string} keys
- * @returns {string[]} the individual keycaps
- */
-function capsFor(keys) {
-  return keys.split('+').map((part) => KEY_LABELS[part] || part.toUpperCase());
-}
 
 export class DlHelp extends PanelElement {
   static styles = `
