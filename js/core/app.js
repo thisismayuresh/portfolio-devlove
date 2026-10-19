@@ -16,6 +16,7 @@
  *   hover      hovered id changed
  *   geometry   the preview frame reported new measurements
  *   mode       design/preview switch
+ *   sidebar    a left/right sidebar was shown or hidden
  *   zoom       canvas zoom changed
  *   page       page settings changed
  *   status     a message for the status bar
@@ -74,6 +75,12 @@ export class DevloveApp extends Emitter {
     this.state = {
       ready: false,
       mode: /** @type {'design' | 'preview'} */ ('design'),
+      /**
+       * The two sidebars. `true` while visible — both start open, every
+       * session; the choice is deliberately not persisted.
+       */
+      leftSidebar: true,
+      rightSidebar: true,
       zoom: 1,
       /** The primary selection: the element the inspector reads. */
       selection: /** @type {string | null} */ (null),
@@ -768,6 +775,33 @@ export class DevloveApp extends Emitter {
 
   toggleMode() {
     this.setMode(this.state.mode === 'design' ? 'preview' : 'design');
+  }
+
+  /**
+   * Shows or hides one sidebar. `main.js` mirrors the state onto the shell's
+   * `data-left-sidebar` / `data-right-sidebar` attributes, which is where the
+   * grid widths come from.
+   *
+   * @param {'left' | 'right'} side
+   * @param {boolean} open
+   */
+  setSidebar(side, open) {
+    const key = side === 'left' ? 'leftSidebar' : 'rightSidebar';
+    if (this.state[key] === open) {
+      return;
+    }
+    this.state[key] = open;
+    this.emit('sidebar', side);
+  }
+
+  /**
+   * Flips one sidebar's visibility.
+   *
+   * @param {'left' | 'right'} side
+   */
+  toggleSidebar(side) {
+    const key = side === 'left' ? 'leftSidebar' : 'rightSidebar';
+    this.setSidebar(side, !this.state[key]);
   }
 
   /** @param {number} zoom */
